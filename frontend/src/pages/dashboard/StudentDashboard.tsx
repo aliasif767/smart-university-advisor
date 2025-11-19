@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   BookOpen,
   Calendar,
@@ -8,11 +8,8 @@ import {
   FileText,
   Send,
   Eye,
-  MessageSquare,
-  Award,
   Bot,
   CalendarCheck,
-  Filter,
   X,
   Upload,
   Menu,
@@ -24,20 +21,15 @@ import {
   Search,
   TrendingUp,
   Target,
-  Zap,
-  ArrowRight,
   GraduationCap,
+  FileCheck,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface QueryForm {
-  id: string;
-  title: string;
-  category: 'academic' | 'leave' | 'exam' | 'other';
-}
+import { queryAPI, appointmentAPI, statsAPI } from "@/services/api";
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
@@ -47,41 +39,85 @@ export default function StudentDashboard() {
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Form States
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedQueryType, setSelectedQueryType] = useState("");
+  const [courseName, setCourseName] = useState("");
+  const [courseCode, setCourseCode] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [leaveType, setLeaveType] = useState("");
+  const [examType, setExamType] = useState("");
+  const [currentMarks, setCurrentMarks] = useState("");
+  const [issueType, setIssueType] = useState("");
+  const [attendancePercentage, setAttendancePercentage] = useState("");
+  
+  const fileInputRef = useRef(null);
+
+  // Data States
+  const [queries, setQueries] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [appointments, setAppointments] = useState([]);
+
   const [chatMessages, setChatMessages] = useState([
     { role: "assistant", content: "Hi! I'm your AI assistant. How can I help you today?" }
   ]);
   const [chatInput, setChatInput] = useState("");
 
-  const queryForms: QueryForm[] = [
+  // Fetch dashboard data
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const [queriesRes, statsRes] = await Promise.all([
+        queryAPI.getMyQueries(),
+        statsAPI.getDashboard()
+      ]);
+      
+      setQueries(queriesRes.data.queries || []);
+      setStats(statsRes.data.stats || {});
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  const queryForms = [
     { id: "add-drop", title: "Course Add/Drop", category: "academic" },
     { id: "freeze-course", title: "Course Freeze", category: "academic" },
     { id: "mid-retake", title: "Mid Retake", category: "exam" },
     { id: "final-retake", title: "Final Retake", category: "exam" },
+    { id: "update-marks", title: "Update marks", category: "exam" },
     { id: "sick-leave", title: "Sick Leave", category: "leave" },
     { id: "marriage-leave", title: "Marriage Leave", category: "leave" },
     { id: "urgent-leave", title: "Urgent Leave", category: "leave" },
     { id: "timetable", title: "Timetable Issue", category: "other" },
+    { id: "attendance", title: "Attendance Issue", category: "other" },
   ];
 
-  const stats = [
+  const statsDisplay = [
     { 
       label: "Pending Requests", 
-      value: "3", 
+      value: stats?.pendingQueries || "0", 
       icon: Clock, 
       color: "text-orange-600", 
       bg: "bg-gradient-to-br from-orange-50 to-orange-100", 
       border: "border-orange-200",
-      trend: "+2 this week",
+      trend: `${stats?.totalQueries || 0} total`,
       trendIcon: TrendingUp
     },
     { 
       label: "Approved", 
-      value: "12", 
+      value: stats?.approvedQueries || "0", 
       icon: CheckCircle, 
       color: "text-green-600", 
       bg: "bg-gradient-to-br from-green-50 to-green-100", 
       border: "border-green-200",
-      trend: "85% approval rate",
+      trend: "This semester",
       trendIcon: Target
     },
     { 
@@ -94,15 +130,17 @@ export default function StudentDashboard() {
       trend: "Spring 2024",
       trendIcon: GraduationCap
     },
-    
   ];
 
-  const recentApplications = [
-    { id: 1, type: "Sick Leave", status: "pending", date: "2024-11-05", description: "Medical leave for 2 days", time: "10:30 AM", priority: "high" },
-    { id: 2, type: "Course Freeze", status: "approved", date: "2024-11-03", description: "Freeze Software Engineering", time: "2:15 PM", priority: "medium" },
-    { id: 3, type: "Add/Drop Course", status: "pending", date: "2024-11-02", description: "Drop Database Systems", time: "11:45 AM", priority: "medium" },
-    { id: 4, type: "Exam Retake", status: "approved", date: "2024-10-28", description: "Retake Data Structures exam", time: "9:00 AM", priority: "low" },
-  ];
+  const recentApplications = queries.slice(0, 4).map(q => ({
+    id: q._id,
+    type: q.queryType,
+    status: q.finalStatus,
+    date: new Date(q.createdAt).toISOString().split('T')[0],
+    description: q.description,
+    time: new Date(q.createdAt).toLocaleTimeString(),
+    priority: q.priority
+  }));
 
   const announcements = [
     { 
@@ -125,16 +163,6 @@ export default function StudentDashboard() {
       icon: BookOpen,
       iconBg: "bg-green-500"
     },
-    { 
-      id: 3, 
-      title: "Sports week starting next Monday", 
-      time: "2 days ago", 
-      color: "bg-gradient-to-r from-purple-50 to-purple-100", 
-      textColor: "text-purple-900", 
-      timeColor: "text-purple-600",
-      icon: Award,
-      iconBg: "bg-purple-500"
-    },
   ];
 
   const quickActions = [
@@ -143,29 +171,21 @@ export default function StudentDashboard() {
     { title: "AI Assistant", icon: Bot, color: "from-purple-500 to-purple-600", action: () => setShowChatbot(true) },
   ];
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status) => {
     switch (status) {
-      case "approved":
-        return "default";
-      case "pending":
-        return "secondary";
-      case "rejected":
-        return "destructive";
-      default:
-        return "default";
+      case "approved": return "default";
+      case "pending": return "secondary";
+      case "rejected": return "destructive";
+      default: return "default";
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority) => {
     switch (priority) {
-      case "high":
-        return "bg-red-100 text-red-700 border-red-200";
-      case "medium":
-        return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "low":
-        return "bg-green-100 text-green-700 border-green-200";
-      default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+      case "high": return "bg-red-100 text-red-700 border-red-200";
+      case "medium": return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      case "low": return "bg-green-100 text-green-700 border-green-200";
+      default: return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
@@ -182,14 +202,135 @@ export default function StudentDashboard() {
 
   const filteredForms = queryForms.filter(form => form.category === selectedCategory);
 
-  const handleFormSubmit = () => {
-    alert("Query form submitted successfully!");
-    setActiveView("dashboard");
+  const handleFileClick = () => {
+    fileInputRef.current?.click();
   };
 
-  const handleAppointmentSubmit = () => {
-    alert("Appointment booked successfully!");
-    setShowAppointmentForm(false);
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedQueryType("");
+    setCourseName("");
+    setCourseCode("");
+    setDescription("");
+    setStartDate("");
+    setEndDate("");
+    setLeaveType("");
+    setExamType("");
+    setCurrentMarks("");
+    setIssueType("");
+    setAttendancePercentage("");
+    setSelectedFile(null);
+  };
+
+  const handleFormSubmit = async () => {
+    if (!selectedQueryType || !description) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      
+      // Common fields
+      formData.append('queryType', selectedQueryType);
+      formData.append('description', description);
+      formData.append('priority', 'medium');
+      
+      // Add file if exists
+      if (selectedFile) {
+        formData.append('documents', selectedFile);
+      }
+
+      let response;
+      
+      if (selectedCategory === 'academic') {
+        if (!courseName) {
+          alert("Please enter course name");
+          setLoading(false);
+          return;
+        }
+        formData.append('courseName', courseName);
+        formData.append('courseCode', courseCode);
+        formData.append('semester', 'Fall 2024');
+        response = await queryAPI.submitAcademic(formData);
+        
+      } else if (selectedCategory === 'exam') {
+        if (!courseName) {
+          alert("Please enter course name");
+          setLoading(false);
+          return;
+        }
+        formData.append('courseName', courseName);
+        formData.append('courseCode', courseCode);
+        formData.append('examType', examType || 'mid');
+        if (currentMarks) formData.append('currentMarks', currentMarks);
+        response = await queryAPI.submitExam(formData);
+        
+      } else if (selectedCategory === 'leave') {
+        if (!startDate || !endDate) {
+          alert("Please select start and end dates");
+          setLoading(false);
+          return;
+        }
+        formData.append('leaveType', leaveType || 'sick');
+        formData.append('startDate', startDate);
+        formData.append('endDate', endDate);
+        response = await queryAPI.submitLeave(formData);
+        
+      } else if (selectedCategory === 'other') {
+        formData.append('issueType', issueType || selectedQueryType);
+        if (attendancePercentage) formData.append('attendancePercentage', attendancePercentage);
+        response = await queryAPI.submitOther(formData);
+      }
+
+      alert("Query submitted successfully!");
+      resetForm();
+      setActiveView('dashboard');
+      fetchDashboardData(); // Refresh data
+      
+    } catch (error) {
+      console.error('Error submitting query:', error);
+      alert(error.response?.data?.message || "Failed to submit query. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAppointmentSubmit = async () => {
+    const appointmentType = document.getElementById('appointment-type')?.value;
+    const preferredDate = document.getElementById('appointment-date')?.value;
+    const preferredTime = document.getElementById('appointment-time')?.value;
+    const reason = document.getElementById('appointment-reason')?.value;
+
+    if (!appointmentType || !preferredDate || !preferredTime || !reason) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await appointmentAPI.book({
+        appointmentType,
+        preferredDate,
+        preferredTime,
+        reason
+      });
+      
+      alert("Appointment booked successfully!");
+      setShowAppointmentForm(false);
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      alert("Failed to book appointment. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChatSubmit = () => {
@@ -225,7 +366,6 @@ export default function StudentDashboard() {
 
   const QueryFormView = () => (
     <div className="space-y-6">
-      {/* Category Filter */}
       <div className="flex flex-wrap gap-3">
         {[
           { id: "academic", label: "Academic", icon: BookOpen, gradient: "from-blue-500 to-blue-600" },
@@ -235,7 +375,10 @@ export default function StudentDashboard() {
         ].map((cat) => (
           <button
             key={cat.id}
-            onClick={() => setSelectedCategory(cat.id as any)}
+            onClick={() => {
+              setSelectedCategory(cat.id);
+              setSelectedQueryType("");
+            }}
             className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all transform hover:scale-105 ${
               selectedCategory === cat.id
                 ? `bg-gradient-to-r ${cat.gradient} text-white shadow-xl`
@@ -248,7 +391,6 @@ export default function StudentDashboard() {
         ))}
       </div>
 
-      {/* Form */}
       <Card className="border-2 border-gray-200 shadow-xl rounded-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
           <h3 className="text-xl font-bold flex items-center gap-2">
@@ -261,10 +403,7 @@ export default function StudentDashboard() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Student ID
-                </label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Student ID</label>
                 <input
                   type="text"
                   value={user?.studentId || "N/A"}
@@ -273,10 +412,7 @@ export default function StudentDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Student Name
-                </label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Student Name</label>
                 <input
                   type="text"
                   value={`${user?.firstName || ""} ${user?.lastName || ""}`}
@@ -287,28 +423,53 @@ export default function StudentDashboard() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Query Type *
-              </label>
-              <select className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Query Type *</label>
+              <select 
+                value={selectedQueryType}
+                onChange={(e) => setSelectedQueryType(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+              >
                 <option value="">Select query type</option>
                 {filteredForms.map((form) => (
-                  <option key={form.id} value={form.id}>
-                    {form.title}
-                  </option>
+                  <option key={form.id} value={form.id}>{form.title}</option>
                 ))}
               </select>
             </div>
 
-            {selectedCategory === "academic" && (
+            {(selectedCategory === "academic" || selectedCategory === "exam") && (
+              <>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Course Name *</label>
+                  <input
+                    type="text"
+                    value={courseName}
+                    onChange={(e) => setCourseName(e.target.value)}
+                    placeholder="Enter course name"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Course Code</label>
+                  <input
+                    type="text"
+                    value={courseCode}
+                    onChange={(e) => setCourseCode(e.target.value)}
+                    placeholder="e.g., CS-301"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                  />
+                </div>
+              </>
+            )}
+
+            {selectedCategory === "exam" && (
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Course Name *
-                </label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Current Marks</label>
                 <input
-                  type="text"
-                  placeholder="Enter course name"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+                  type="number"
+                  value={currentMarks}
+                  onChange={(e) => setCurrentMarks(e.target.value)}
+                  placeholder="Enter marks"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                 />
               </div>
             )}
@@ -316,45 +477,78 @@ export default function StudentDashboard() {
             {selectedCategory === "leave" && (
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    Start Date *
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Start Date *</label>
                   <input
                     type="date"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    End Date *
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">End Date *</label>
                   <input
                     type="date"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                   />
                 </div>
               </div>
             )}
 
+            {selectedCategory === "other" && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Attendance %</label>
+                <input
+                  type="number"
+                  value={attendancePercentage}
+                  onChange={(e) => setAttendancePercentage(e.target.value)}
+                  placeholder="e.g., 75"
+                  min="0"
+                  max="100"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                />
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Description *
-              </label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Description *</label>
               <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 rows={5}
                 placeholder="Provide detailed information about your query..."
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none shadow-sm"
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Supporting Documents
-              </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:border-blue-400 transition-all cursor-pointer bg-gradient-to-br from-gray-50 to-blue-50 hover:from-blue-50 hover:to-blue-100">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-sm text-gray-600 font-semibold">Click to upload or drag and drop</p>
-                <p className="text-xs text-gray-400 mt-2">PDF, DOC, or Image files (Max 5MB)</p>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Supporting Documents</label>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                className="hidden" 
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              />
+              <div 
+                onClick={handleFileClick}
+                className={`border-2 border-dashed ${selectedFile ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gradient-to-br from-gray-50 to-blue-50'} rounded-xl p-10 text-center hover:border-blue-400 transition-all cursor-pointer hover:from-blue-50 hover:to-blue-100`}
+              >
+                {selectedFile ? (
+                  <>
+                    <FileCheck className="h-12 w-12 text-green-600 mx-auto mb-3" />
+                    <p className="text-sm text-green-800 font-bold">{selectedFile.name}</p>
+                    <p className="text-xs text-green-600 mt-1">Click to change file</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-sm text-gray-600 font-semibold">Click to upload or drag and drop</p>
+                    <p className="text-xs text-gray-400 mt-2">PDF, DOC, or Image files (Max 5MB)</p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -362,12 +556,27 @@ export default function StudentDashboard() {
               <Button
                 variant="outline"
                 className="flex-1 py-6 text-base font-semibold rounded-xl border-2 hover:bg-gray-100"
-                onClick={() => setActiveView("dashboard")}
+                onClick={() => {
+                  resetForm();
+                  setActiveView("dashboard");
+                }}
+                disabled={loading}
               >
                 Cancel
               </Button>
-              <Button onClick={handleFormSubmit} className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 py-6 text-base font-semibold rounded-xl shadow-lg">
-                Submit Query
+              <Button 
+                onClick={handleFormSubmit} 
+                disabled={loading}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 py-6 text-base font-semibold rounded-xl shadow-lg"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Query"
+                )}
               </Button>
             </div>
           </div>
@@ -378,7 +587,6 @@ export default function StudentDashboard() {
 
   const DashboardView = () => (
     <div className="space-y-6">
-      {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
@@ -412,7 +620,6 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      {/* Quick Action Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {quickActions.map((action, index) => (
           <Card 
@@ -436,9 +643,8 @@ export default function StudentDashboard() {
         ))}
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
+        {statsDisplay.map((stat, index) => (
           <Card key={index} className={`border-2 ${stat.border} shadow-lg hover:shadow-xl transition-all rounded-2xl overflow-hidden`}>
             <CardContent className="p-6">
               <div className={`${stat.bg} rounded-xl p-4 mb-4`}>
@@ -455,7 +661,6 @@ export default function StudentDashboard() {
         ))}
       </div>
 
-      {/* Recent Applications */}
       <Card className="border-2 border-gray-200 shadow-xl rounded-2xl overflow-hidden">
         <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50">
           <CardTitle className="flex items-center justify-between">
@@ -472,47 +677,50 @@ export default function StudentDashboard() {
         </CardHeader>
         <CardContent className="p-6 bg-gradient-to-br from-white to-gray-50">
           <div className="space-y-4">
-            {recentApplications.map((app) => (
-              <div
-                key={app.id}
-                className="flex items-center justify-between p-6 bg-white rounded-xl hover:bg-gray-50 transition-all border-2 border-gray-100 hover:border-blue-200 hover:shadow-lg"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <p className="font-bold text-gray-900 text-lg">{app.type}</p>
-                    <Badge variant={getStatusColor(app.status) as any} className="text-xs font-semibold">
-                      {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
-                    </Badge>
-                    <Badge className={`text-xs font-semibold border ${getPriorityColor(app.priority)}`}>
-                      {app.priority.charAt(0).toUpperCase() + app.priority.slice(1)} Priority
-                    </Badge>
+            {recentApplications.length > 0 ? (
+              recentApplications.map((app) => (
+                <div
+                  key={app.id}
+                  className="flex items-center justify-between p-6 bg-white rounded-xl hover:bg-gray-50 transition-all border-2 border-gray-100 hover:border-blue-200 hover:shadow-lg"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <p className="font-bold text-gray-900 text-lg">{app.type}</p>
+                      <Badge variant={getStatusColor(app.status)} className="text-xs font-semibold">
+                        {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                      </Badge>
+                      <Badge className={`text-xs font-semibold border ${getPriorityColor(app.priority)}`}>
+                        {app.priority.charAt(0).toUpperCase() + app.priority.slice(1)} Priority
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3 font-medium">{app.description.substring(0, 80)}...</p>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span className="flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full">
+                        <Calendar className="w-3 h-3" />
+                        {app.date}
+                      </span>
+                      <span className="flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full">
+                        <Clock className="w-3 h-3" />
+                        {app.time}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-3 font-medium">{app.description}</p>
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span className="flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full">
-                      <Calendar className="w-3 h-3" />
-                      {app.date}
-                    </span>
-                    <span className="flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full">
-                      <Clock className="w-3 h-3" />
-                      {app.time}
-                    </span>
-                  </div>
+                  <Button size="sm" className="ml-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg">
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </Button>
                 </div>
-                <Button size="sm" className="ml-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg">
-                  <Eye className="h-4 w-4 mr-2" />
-                  View Details
-                </Button>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>No applications yet. Submit your first query!</p>
               </div>
-            ))}
+            )}
           </div>
-          <Button variant="link" className="w-full mt-4 text-blue-600 font-bold text-base hover:text-blue-700">
-            View All Applications <ArrowRight className="w-4 h-4 ml-2 inline" />
-          </Button>
         </CardContent>
       </Card>
 
-      {/* Announcements */}
       <Card className="border-2 border-gray-200 shadow-xl rounded-2xl overflow-hidden">
         <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-purple-50">
           <CardTitle className="flex items-center gap-3">
@@ -547,9 +755,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Sidebar */}
       <div className={`${sidebarOpen ? "w-72" : "w-0"} bg-white border-r-2 border-gray-200 transition-all duration-300 overflow-hidden shadow-2xl flex flex-col`}>
-        {/* Logo Section */}
         <div className="p-6 border-b-2 bg-gradient-to-r from-blue-600 to-indigo-700 shadow-lg">
           <div className="flex items-center gap-3 text-white">
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
@@ -562,7 +768,6 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">
           <button
             onClick={() => setActiveView("dashboard")}
@@ -606,9 +811,7 @@ export default function StudentDashboard() {
         </nav>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
         <div className="bg-white border-b-2 shadow-lg">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-4">
@@ -627,7 +830,6 @@ export default function StudentDashboard() {
             </div>
 
             <div className="flex items-center gap-4">
-              {/* Search Bar */}
               <div className="hidden md:flex items-center bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl px-4 py-2 w-64 shadow-inner">
                 <Search className="w-4 h-4 text-gray-500 mr-2" />
                 <input
@@ -637,13 +839,11 @@ export default function StudentDashboard() {
                 />
               </div>
 
-              {/* Notifications */}
               <button className="relative p-3 hover:bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl transition-all shadow-sm">
                 <Bell className="w-5 h-5 text-gray-600" />
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               </button>
 
-              {/* Profile Dropdown */}
               <div className="relative">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -661,7 +861,6 @@ export default function StudentDashboard() {
                   <ChevronDown className="w-4 h-4 text-gray-400" />
                 </button>
 
-                {/* Dropdown Menu */}
                 {showProfileMenu && (
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border-2 border-gray-200 py-2 z-50">
                     <div className="px-4 py-3 border-b-2 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -693,13 +892,11 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-auto p-6">
           {activeView === "dashboard" ? <DashboardView /> : <QueryFormView />}
         </div>
       </div>
 
-      {/* Appointment Modal */}
       {showAppointmentForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border-2 border-gray-200">
@@ -723,10 +920,8 @@ export default function StudentDashboard() {
 
             <div className="p-6 space-y-6 bg-gradient-to-br from-white to-gray-50">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Appointment Type *
-                </label>
-                <select className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-medium shadow-sm">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Appointment Type *</label>
+                <select id="appointment-type" className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 font-medium shadow-sm">
                   <option value="">Select type</option>
                   <option value="academic">Academic Counseling</option>
                   <option value="course">Course Guidance</option>
@@ -737,19 +932,17 @@ export default function StudentDashboard() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    Preferred Date *
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Preferred Date *</label>
                   <input
+                    id="appointment-date"
                     type="date"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    Preferred Time *
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Preferred Time *</label>
                   <input
+                    id="appointment-time"
                     type="time"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm"
                   />
@@ -757,10 +950,9 @@ export default function StudentDashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Reason for Appointment *
-                </label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Reason for Appointment *</label>
                 <textarea
+                  id="appointment-reason"
                   rows={4}
                   placeholder="Briefly describe what you'd like to discuss..."
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 resize-none shadow-sm"
@@ -772,11 +964,23 @@ export default function StudentDashboard() {
                   variant="outline"
                   className="flex-1 py-6 font-bold rounded-xl border-2 hover:bg-gray-100"
                   onClick={() => setShowAppointmentForm(false)}
+                  disabled={loading}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleAppointmentSubmit} className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 py-6 font-bold rounded-xl shadow-lg">
-                  Book Appointment
+                <Button 
+                  onClick={handleAppointmentSubmit} 
+                  disabled={loading}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 py-6 font-bold rounded-xl shadow-lg"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Booking...
+                    </>
+                  ) : (
+                    "Book Appointment"
+                  )}
                 </Button>
               </div>
             </div>
@@ -784,7 +988,6 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {/* Chatbot Modal */}
       {showChatbot && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border-2 border-gray-200">
