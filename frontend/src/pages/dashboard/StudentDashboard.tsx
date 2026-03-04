@@ -23,13 +23,19 @@ import {
   Target,
   GraduationCap,
   FileCheck,
-  Loader2
+  Loader2,
+  UserCheck,
+  BarChart3,
+  ClipboardList,
+  ChevronRight,
+  XCircle,
+  RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { queryAPI, appointmentAPI, statsAPI } from "@/services/api";
+import { queryAPI, appointmentAPI, statsAPI, studentAcademicAPI } from "@/services/api";
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
@@ -54,6 +60,7 @@ export default function StudentDashboard() {
   const [currentMarks, setCurrentMarks] = useState("");
   const [issueType, setIssueType] = useState("");
   const [attendancePercentage, setAttendancePercentage] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
   
   const fileInputRef = useRef(null);
 
@@ -61,6 +68,12 @@ export default function StudentDashboard() {
   const [queries, setQueries] = useState([]);
   const [stats, setStats] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [marksRecords, setMarksRecords] = useState([]);
+  const [attendanceSummary, setAttendanceSummary] = useState(null);
+  const [marksSummary, setMarksSummary] = useState(null);
+  const [hopAnnouncements, setHopAnnouncements] = useState([]);
+  const [queryFilter, setQueryFilter] = useState("all");
 
   const [chatMessages, setChatMessages] = useState([
     { role: "assistant", content: "Hi! I'm your AI assistant. How can I help you today?" }
@@ -72,17 +85,74 @@ export default function StudentDashboard() {
     fetchDashboardData();
   }, []);
 
+  // Fetch attendance data when view changes
+  useEffect(() => {
+    if (activeView === "attendance") {
+      fetchAttendanceData();
+    }
+  }, [activeView]);
+
+  // Fetch marks data when view changes
+  useEffect(() => {
+    if (activeView === "marks") {
+      fetchMarksData();
+    }
+  }, [activeView]);
+
+  // Re-fetch queries when switching to my-queries view
+  useEffect(() => {
+    if (activeView === "myQueries") {
+      fetchDashboardData();
+    }
+  }, [activeView]);
+
   const fetchDashboardData = async () => {
     try {
-      const [queriesRes, statsRes] = await Promise.all([
+      const [queriesRes, statsRes, announcementsRes] = await Promise.all([
         queryAPI.getMyQueries(),
-        statsAPI.getDashboard()
+        statsAPI.getDashboard(),
+        studentAcademicAPI.getAnnouncements().catch(() => ({ data: { announcements: [] } }))
       ]);
       
       setQueries(queriesRes.data.queries || []);
       setStats(statsRes.data.stats || {});
+      setHopAnnouncements(announcementsRes.data.announcements || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  const fetchAttendanceData = async () => {
+    setLoading(true);
+    try {
+      const [recordsRes, summaryRes] = await Promise.all([
+        studentAcademicAPI.getMyAttendance(),
+        studentAcademicAPI.getAttendanceSummary()
+      ]);
+      
+      setAttendanceRecords(recordsRes.data.attendance || []);
+      setAttendanceSummary(summaryRes.data.summary || {});
+    } catch (error) {
+      console.error('Error fetching attendance data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMarksData = async () => {
+    setLoading(true);
+    try {
+      const [recordsRes, summaryRes] = await Promise.all([
+        studentAcademicAPI.getMyMarks(),
+        studentAcademicAPI.getMarksSummary()
+      ]);
+      
+      setMarksRecords(recordsRes.data.marks || []);
+      setMarksSummary(summaryRes.data.summary || {});
+    } catch (error) {
+      console.error('Error fetching marks data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -142,28 +212,13 @@ export default function StudentDashboard() {
     priority: q.priority
   }));
 
-  const announcements = [
-    { 
-      id: 1, 
-      title: "Mid-term exam schedule released", 
-      time: "2 hours ago", 
-      color: "bg-gradient-to-r from-blue-50 to-blue-100", 
-      textColor: "text-blue-900", 
-      timeColor: "text-blue-600",
-      icon: Calendar,
-      iconBg: "bg-blue-500"
-    },
-    { 
-      id: 2, 
-      title: "New course registration open", 
-      time: "1 day ago", 
-      color: "bg-gradient-to-r from-green-50 to-green-100", 
-      textColor: "text-green-900", 
-      timeColor: "text-green-600",
-      icon: BookOpen,
-      iconBg: "bg-green-500"
-    },
-  ];
+  // announcements are fetched from HOP (hopAnnouncements state)
+  const announcementTypeStyle = (type) => {
+    if (type === 'exam')    return { color: "bg-gradient-to-r from-red-50 to-red-100",    textColor: "text-red-900",    timeColor: "text-red-600",    iconBg: "bg-red-500",    icon: FileText };
+    if (type === 'urgent')  return { color: "bg-gradient-to-r from-orange-50 to-orange-100", textColor: "text-orange-900", timeColor: "text-orange-600", iconBg: "bg-orange-500", icon: AlertCircle };
+    if (type === 'event')   return { color: "bg-gradient-to-r from-purple-50 to-purple-100", textColor: "text-purple-900", timeColor: "text-purple-600", iconBg: "bg-purple-500", icon: Calendar };
+    return { color: "bg-gradient-to-r from-green-50 to-green-100", textColor: "text-green-900", timeColor: "text-green-600", iconBg: "bg-green-500", icon: Bell };
+  };
 
   const quickActions = [
     { title: "Submit New Query", icon: FileText, color: "from-blue-500 to-blue-600", action: () => setActiveView("queryForm") },
@@ -174,6 +229,7 @@ export default function StudentDashboard() {
   const getStatusColor = (status) => {
     switch (status) {
       case "approved": return "default";
+      case "resolved": return "default";
       case "pending": return "secondary";
       case "rejected": return "destructive";
       default: return "default";
@@ -333,25 +389,49 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleChatSubmit = () => {
+  const handleChatSubmit = async () => {
     if (!chatInput.trim()) return;
 
     const userMessage = { role: "user", content: chatInput };
-    setChatMessages([...chatMessages, userMessage]);
-    
-    setTimeout(() => {
-      const responses = [
-        "To submit a leave application, click on 'Query Forms' in the sidebar and select the 'Leave' category.",
-        "For course add/drop, go to Query Forms and select 'Academic' category. The deadline is usually 2 weeks after semester starts.",
-        "Your attendance and CGPA information can be found in your student portal under Academic Records.",
-        "You can book an appointment with your advisor using the 'Book Appointment' button in the sidebar.",
-        "Course freeze applications require proper documentation. Make sure to attach supporting documents when submitting."
-      ];
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      setChatMessages(prev => [...prev, { role: "assistant", content: randomResponse }]);
-    }, 1000);
-
+    setChatMessages(prev => [...prev, userMessage]);
     setChatInput("");
+    setIsTyping(true);
+
+    // Add an empty assistant message that we will "fill" with the stream
+    setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: chatInput }),
+      });
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedResponse = "";
+
+      while (true) {
+        const { done, value } = await reader!.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        accumulatedResponse += chunk;
+
+        // Update the LAST message in the array with the new text
+        setChatMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { 
+            role: "assistant", 
+            content: accumulatedResponse 
+          };
+          return updated;
+        });
+        setIsTyping(false); // Hide loader once text starts appearing
+      }
+    } catch (error) {
+      console.error("Streaming error:", error);
+    }
   };
 
   const handleLogout = () => {
@@ -364,6 +444,288 @@ export default function StudentDashboard() {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
+  // Dashboard View
+  const DashboardView = () => (
+    <div className="space-y-6">
+      {/* Welcome Banner */}
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
+        <div className="relative z-10">
+          <h2 className="text-3xl font-bold mb-2">Welcome back, {user?.firstName}!</h2>
+          <p className="text-blue-100 font-medium">Here's what's happening with your academic journey today</p>
+          <div className="mt-6 flex items-center gap-2">
+            {getVerificationBadge()}
+            <Badge className="bg-blue-500 text-white border-blue-300">
+              Student ID: {user?.studentId || "N/A"}
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {statsDisplay.map((stat, idx) => (
+          <Card key={idx} className={`border-2 ${stat.border} shadow-xl rounded-2xl overflow-hidden transform hover:scale-105 transition-all cursor-pointer`}>
+            <div className={`${stat.bg} p-6`}>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-gray-600 mb-1">{stat.label}</p>
+                  <p className={`text-4xl font-black ${stat.color} mb-2`}>{stat.value}</p>
+                  <div className="flex items-center gap-2">
+                    <stat.trendIcon className="w-4 h-4 text-gray-600" />
+                    <span className="text-xs font-bold text-gray-600">{stat.trend}</span>
+                  </div>
+                </div>
+                <div className={`p-4 rounded-xl ${stat.bg} shadow-lg`}>
+                  <stat.icon className={`w-8 h-8 ${stat.color}`} />
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <div>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {quickActions.map((action, idx) => (
+            <button
+              key={idx}
+              onClick={action.action}
+              className={`bg-gradient-to-r ${action.color} text-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all`}
+            >
+              <action.icon className="w-8 h-8 mb-3" />
+              <span className="font-bold text-lg">{action.title}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Applications */}
+        <Card className="border-2 border-gray-200 shadow-xl rounded-2xl">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2">
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <FileCheck className="w-6 h-6 text-blue-600" />
+              Recent Applications
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {recentApplications.length > 0 ? (
+                recentApplications.map((app) => (
+                  <div key={app.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200 hover:shadow-lg transition-all cursor-pointer">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <FileText className="w-5 h-5 text-gray-600" />
+                        <span className="font-bold text-gray-800">{app.type}</span>
+                        <Badge variant={getStatusColor(app.status)} className="font-bold">
+                          {app.status}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 ml-8 font-medium">{app.description}</p>
+                      <div className="flex items-center gap-4 mt-2 ml-8">
+                        <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {app.date}
+                        </span>
+                        <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {app.time}
+                        </span>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" className="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg">
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p className="font-medium">No applications yet</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Announcements */}
+        <Card className="border-2 border-gray-200 shadow-xl rounded-2xl">
+          <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b-2">
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <Bell className="w-6 h-6 text-green-600" />
+              Announcements
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {hopAnnouncements.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Bell className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p className="font-medium">No announcements yet</p>
+                </div>
+              ) : (
+                hopAnnouncements.map((ann) => {
+                  const style = announcementTypeStyle(ann.type);
+                  const IconComp = style.icon;
+                  return (
+                    <div key={ann._id} className={`${style.color} p-4 rounded-xl border-2 border-gray-200 hover:shadow-lg transition-all`}>
+                      <div className="flex items-start gap-3">
+                        <div className={`${style.iconBg} p-2 rounded-lg flex-shrink-0`}>
+                          <IconComp className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className={`font-bold ${style.textColor} mb-1`}>{ann.title}</h4>
+                          <p className={`text-sm ${style.textColor} opacity-80 mb-1`}>{ann.content}</p>
+                          <p className={`text-xs ${style.timeColor} font-medium`}>
+                            {ann.postedByName ? `By ${ann.postedByName} · ` : ""}
+                            {new Date(ann.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {ann.type === 'urgent' && (
+                          <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full font-bold flex-shrink-0">URGENT</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+
+  // Attendance View
+  const AttendanceView = () => (
+    <div className="space-y-6">
+      <Card className="border-2 border-gray-200 shadow-xl rounded-2xl">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
+          <div className="flex items-center gap-3">
+            <div className="bg-white p-3 rounded-xl shadow-lg">
+              <UserCheck className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xl">My Attendance Records</h3>
+              <p className="text-sm text-blue-100 font-medium">View your attendance across all courses</p>
+            </div>
+          </div>
+        </div>
+
+        
+
+        <CardContent className="p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : attendanceRecords.length > 0 ? (
+            <div className="space-y-4">
+              {attendanceRecords.map((record, idx) => (
+                <div key={idx} className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200 hover:shadow-lg transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <BookOpen className="w-5 h-5 text-blue-600" />
+                        <span className="font-bold text-gray-800">{record.courseName}</span>
+                        <Badge className={`font-bold ${record.status === 'present' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {record.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 ml-8">
+                        <span className="text-sm text-gray-600 font-medium flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {new Date(record.date).toLocaleDateString()}
+                        </span>
+                        
+                      </div>
+                    </div>
+                    
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <UserCheck className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <p className="font-medium">No attendance records found</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Marks View
+  const MarksView = () => (
+    <div className="space-y-6">
+      <Card className="border-2 border-gray-200 shadow-xl rounded-2xl">
+        <div className="bg-gradient-to-r from-green-600 to-emerald-700 p-6 text-white">
+          <div className="flex items-center gap-3">
+            <div className="bg-white p-3 rounded-xl shadow-lg">
+              <BarChart3 className="h-6 w-6 text-green-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xl">My Exam Marks</h3>
+              <p className="text-sm text-green-100 font-medium">View your performance across all assessments</p>
+            </div>
+          </div>
+        </div>
+
+        
+
+        <CardContent className="p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+            </div>
+          ) : marksRecords.length > 0 ? (
+            <div className="space-y-4">
+              {marksRecords.map((record, idx) => (
+                <div key={idx} className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200 hover:shadow-lg transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <FileText className="w-5 h-5 text-green-600" />
+                        <span className="font-bold text-gray-800">{record.courseName}</span>
+                        <Badge className="bg-purple-100 text-purple-700 font-bold">
+                          {record.examType}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 ml-8">
+                        <span className="text-sm text-gray-600 font-medium flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {new Date(record.examDate).toLocaleDateString()}
+                        </span>
+                        
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-600">Score</p>
+                      <p className="text-3xl font-black text-green-600">{record.obtainedMarks}/{record.totalMarks}</p>
+                      <p className="text-sm font-bold text-gray-600">({record.percentage}%)</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <p className="font-medium">No exam marks found</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Query Form View - keeping original implementation
   const QueryFormView = () => (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3">
@@ -406,7 +768,7 @@ export default function StudentDashboard() {
                 <label className="block text-sm font-bold text-gray-700 mb-2">Student ID</label>
                 <input
                   type="text"
-                  value={user?.studentId || "N/A"}
+                  value={user?.studentId|| "N/A"}
                   disabled
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-100 font-medium shadow-inner"
                 />
@@ -424,27 +786,29 @@ export default function StudentDashboard() {
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Query Type *</label>
-              <select 
+              <select
                 value={selectedQueryType}
                 onChange={(e) => setSelectedQueryType(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-sm"
               >
                 <option value="">Select query type</option>
                 {filteredForms.map((form) => (
-                  <option key={form.id} value={form.id}>{form.title}</option>
+                  <option key={form.id} value={form.title}>
+                    {form.title}
+                  </option>
                 ))}
               </select>
             </div>
 
-            {(selectedCategory === "academic" || selectedCategory === "exam") && (
-              <>
+            {(selectedCategory === 'academic' || selectedCategory === 'exam') && (
+              <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Course Name *</label>
                   <input
                     type="text"
                     value={courseName}
                     onChange={(e) => setCourseName(e.target.value)}
-                    placeholder="Enter course name"
+                    placeholder="e.g., Data Structures"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                   />
                 </div>
@@ -454,27 +818,60 @@ export default function StudentDashboard() {
                     type="text"
                     value={courseCode}
                     onChange={(e) => setCourseCode(e.target.value)}
-                    placeholder="e.g., CS-301"
+                    placeholder="e.g., CS-201"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                   />
                 </div>
-              </>
-            )}
-
-            {selectedCategory === "exam" && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Current Marks</label>
-                <input
-                  type="number"
-                  value={currentMarks}
-                  onChange={(e) => setCurrentMarks(e.target.value)}
-                  placeholder="Enter marks"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                />
               </div>
             )}
 
-            {selectedCategory === "leave" && (
+            {selectedCategory === 'exam' && (
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Exam Type</label>
+                  <select
+                    value={examType}
+                    onChange={(e) => setExamType(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-sm"
+                  >
+                    <option value="">Select type</option>
+                    <option value="mid">Midterm</option>
+                    <option value="final">Final</option>
+                    <option value="quiz">Quiz</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Current Marks</label>
+                  <input
+                    type="number"
+                    value={currentMarks}
+                    onChange={(e) => setCurrentMarks(e.target.value)}
+                    placeholder="e.g., 45/50"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedCategory === 'leave' && (
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Leave Type *</label>
+                  <select
+                    value={leaveType}
+                    onChange={(e) => setLeaveType(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-sm"
+                  >
+                    <option value="">Select type</option>
+                    <option value="sick">Sick Leave</option>
+                    <option value="marriage">Marriage Leave</option>
+                    <option value="urgent">Urgent Leave</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {selectedCategory === 'leave' && (
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Start Date *</label>
@@ -497,77 +894,51 @@ export default function StudentDashboard() {
               </div>
             )}
 
-            {selectedCategory === "other" && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Attendance %</label>
-                <input
-                  type="number"
-                  value={attendancePercentage}
-                  onChange={(e) => setAttendancePercentage(e.target.value)}
-                  placeholder="e.g., 75"
-                  min="0"
-                  max="100"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Description *</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={5}
-                placeholder="Provide detailed information about your query..."
+                rows={4}
+                placeholder="Provide detailed information about your request..."
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Supporting Documents</label>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                className="hidden" 
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              <label className="block text-sm font-bold text-gray-700 mb-2">Attachment (Optional)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileChange}
+                className="hidden"
               />
-              <div 
+              <button
+                type="button"
                 onClick={handleFileClick}
-                className={`border-2 border-dashed ${selectedFile ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gradient-to-br from-gray-50 to-blue-50'} rounded-xl p-10 text-center hover:border-blue-400 transition-all cursor-pointer hover:from-blue-50 hover:to-blue-100`}
+                className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 transition-all bg-gray-50 flex items-center justify-center gap-2 font-semibold text-gray-700"
               >
-                {selectedFile ? (
-                  <>
-                    <FileCheck className="h-12 w-12 text-green-600 mx-auto mb-3" />
-                    <p className="text-sm text-green-800 font-bold">{selectedFile.name}</p>
-                    <p className="text-xs text-green-600 mt-1">Click to change file</p>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-sm text-gray-600 font-semibold">Click to upload or drag and drop</p>
-                    <p className="text-xs text-gray-400 mt-2">PDF, DOC, or Image files (Max 5MB)</p>
-                  </>
-                )}
-              </div>
+                <Upload className="w-5 h-5" />
+                {selectedFile ? selectedFile.name : "Click to upload document"}
+              </button>
             </div>
 
             <div className="flex gap-4 pt-4">
               <Button
                 variant="outline"
-                className="flex-1 py-6 text-base font-semibold rounded-xl border-2 hover:bg-gray-100"
+                className="flex-1 py-6 font-bold rounded-xl border-2 hover:bg-gray-100"
                 onClick={() => {
                   resetForm();
-                  setActiveView("dashboard");
+                  setActiveView('dashboard');
                 }}
                 disabled={loading}
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleFormSubmit} 
+              <Button
+                onClick={handleFormSubmit}
                 disabled={loading}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 py-6 text-base font-semibold rounded-xl shadow-lg"
+                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 py-6 font-bold rounded-xl shadow-lg"
               >
                 {loading ? (
                   <>
@@ -585,177 +956,251 @@ export default function StudentDashboard() {
     </div>
   );
 
-  const DashboardView = () => (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
-        <div className="relative flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold mb-2">
-              Welcome back, {user?.firstName}! 👋
-            </h2>
-            <p className="text-blue-100 text-lg">
-              Manage your academic requests and track your progress seamlessly
-            </p>
-            <div className="flex items-center mt-6 space-x-6">
-              <div className="flex items-center bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-                <BookOpen className="w-4 h-4 mr-2" />
-                <span className="text-sm font-medium">ID: {user?.studentId || "N/A"}</span>
-              </div>
-              <div className="flex items-center bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-                <Calendar className="w-4 h-4 mr-2" />
-                <span className="text-sm font-medium">Batch: {user?.batch || "N/A"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {getVerificationBadge()}
-              </div>
+  // ── My Queries View ─────────────────────────────────────────────────
+  const MyQueriesView = () => {
+    const categoryColors = {
+      academic:    { bg: "bg-purple-50",  border: "border-purple-200",  badge: "bg-purple-100 text-purple-700",  icon: "📚" },
+      exam:        { bg: "bg-blue-50",    border: "border-blue-200",    badge: "bg-blue-100 text-blue-700",      icon: "✏️" },
+      leave:       { bg: "bg-orange-50",  border: "border-orange-200",  badge: "bg-orange-100 text-orange-700",  icon: "🏖️" },
+      other:       { bg: "bg-teal-50",    border: "border-teal-200",    badge: "bg-teal-100 text-teal-700",      icon: "🔧" },
+    };
+
+    const statusStep = (status) => {
+      if (status === "approved") return { dot: "bg-green-500",  text: "text-green-700",  label: "Approved" };
+      if (status === "rejected") return { dot: "bg-red-500",    text: "text-red-700",    label: "Rejected" };
+      return                             { dot: "bg-yellow-400", text: "text-yellow-700", label: "Pending"  };
+    };
+
+    const filtered = queryFilter === "all"
+      ? queries
+      : queryFilter === "approved"
+      ? queries.filter(q => q.finalStatus === "approved")
+      : queryFilter === "pending"
+      ? queries.filter(q => q.finalStatus === "pending")
+      : queryFilter === "rejected"
+      ? queries.filter(q => q.finalStatus === "rejected")
+      : queries.filter(q => q.category === queryFilter);
+
+    const counts = {
+      all:      queries.length,
+      pending:  queries.filter(q => q.finalStatus === "pending").length,
+      approved: queries.filter(q => q.finalStatus === "approved").length,
+      rejected: queries.filter(q => q.finalStatus === "rejected").length,
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-700 rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-24 -mt-24" />
+          <div className="relative z-10 flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold mb-1">My Queries</h2>
+              <p className="text-indigo-100">Track all your submitted requests and their approval status</p>
             </div>
-          </div>
-          <div className="hidden lg:block">
-            <div className="w-24 h-24 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center shadow-2xl">
-              <GraduationCap className="w-14 h-14 text-white" />
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
+                <p className="text-2xl font-black">{counts.pending}</p>
+                <p className="text-xs text-indigo-100">Pending</p>
+              </div>
+              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
+                <p className="text-2xl font-black">{counts.approved}</p>
+                <p className="text-xs text-indigo-100">Approved</p>
+              </div>
+              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
+                <p className="text-2xl font-black">{counts.rejected}</p>
+                <p className="text-xs text-indigo-100">Rejected</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {quickActions.map((action, index) => (
-          <Card 
-            key={index}
-            onClick={action.action}
-            className="border-2 border-gray-200 shadow-lg hover:shadow-2xl transition-all cursor-pointer transform hover:-translate-y-1 rounded-2xl overflow-hidden group"
-          >
-            <div className={`h-2 bg-gradient-to-r ${action.color}`}></div>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium mb-1">Quick Action</p>
-                  <p className="text-xl font-bold text-gray-900">{action.title}</p>
-                </div>
-                <div className={`bg-gradient-to-br ${action.color} p-4 rounded-xl shadow-lg group-hover:scale-110 transition-transform`}>
-                  <action.icon className="h-7 w-7 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+        {/* Filter Tabs */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "all",      label: `All (${counts.all})`,           color: "bg-gray-800 text-white"     },
+            { key: "pending",  label: `Pending (${counts.pending})`,   color: "bg-yellow-500 text-white"   },
+            { key: "approved", label: `Approved (${counts.approved})`, color: "bg-green-600 text-white"    },
+            { key: "rejected", label: `Rejected (${counts.rejected})`, color: "bg-red-600 text-white"      },
+            
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setQueryFilter(tab.key)}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                queryFilter === tab.key
+                  ? tab.color + " shadow-lg scale-105"
+                  : "bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-400"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsDisplay.map((stat, index) => (
-          <Card key={index} className={`border-2 ${stat.border} shadow-lg hover:shadow-xl transition-all rounded-2xl overflow-hidden`}>
-            <CardContent className="p-6">
-              <div className={`${stat.bg} rounded-xl p-4 mb-4`}>
-                <div className="flex items-center justify-between mb-2">
-                  <stat.icon className={`h-8 w-8 ${stat.color}`} />
-                  <stat.trendIcon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-                <p className="text-4xl font-bold text-gray-900 mb-1">{stat.value}</p>
-                <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-              </div>
-              <p className={`text-xs font-semibold ${stat.color}`}>{stat.trend}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Card className="border-2 border-gray-200 shadow-xl rounded-2xl overflow-hidden">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-blue-50">
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold">Recent Applications</span>
-            </div>
-            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">
-              {recentApplications.length} Total
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 bg-gradient-to-br from-white to-gray-50">
-          <div className="space-y-4">
-            {recentApplications.length > 0 ? (
-              recentApplications.map((app) => (
-                <div
-                  key={app.id}
-                  className="flex items-center justify-between p-6 bg-white rounded-xl hover:bg-gray-50 transition-all border-2 border-gray-100 hover:border-blue-200 hover:shadow-lg"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <p className="font-bold text-gray-900 text-lg">{app.type}</p>
-                      <Badge variant={getStatusColor(app.status)} className="text-xs font-semibold">
-                        {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
-                      </Badge>
-                      <Badge className={`text-xs font-semibold border ${getPriorityColor(app.priority)}`}>
-                        {app.priority.charAt(0).toUpperCase() + app.priority.slice(1)} Priority
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3 font-medium">{app.description.substring(0, 80)}...</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full">
-                        <Calendar className="w-3 h-3" />
-                        {app.date}
-                      </span>
-                      <span className="flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full">
-                        <Clock className="w-3 h-3" />
-                        {app.time}
-                      </span>
-                    </div>
-                  </div>
-                  <Button size="sm" className="ml-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg">
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Button>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>No applications yet. Submit your first query!</p>
-              </div>
-            )}
+        {/* Query Cards */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
           </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-2 border-gray-200 shadow-xl rounded-2xl overflow-hidden">
-        <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-purple-50">
-          <CardTitle className="flex items-center gap-3">
-            <div className="bg-purple-600 p-2 rounded-lg">
-              <Bell className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">Latest Announcements</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 bg-gradient-to-br from-white to-gray-50">
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-500 bg-white rounded-2xl border-2 border-gray-200 shadow">
+            <ClipboardList className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-xl font-bold text-gray-600">No queries found</p>
+            <p className="text-sm mt-1">Submit a query from the sidebar to get started</p>
+            <button
+              onClick={() => setActiveView("queryForm")}
+              className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl transition-all"
+            >
+              Submit New Query
+            </button>
+          </div>
+        ) : (
           <div className="space-y-4">
-            {announcements.map((announcement) => (
-              <div key={announcement.id} className={`${announcement.color} rounded-xl p-5 border-2 border-opacity-50 hover:shadow-lg transition-all group`}>
-                <div className="flex items-start gap-4">
-                  <div className={`${announcement.iconBg} p-3 rounded-lg group-hover:scale-110 transition-transform`}>
-                    <announcement.icon className="w-5 h-5 text-white" />
+            {filtered.map((q) => {
+              const cat = categoryColors[q.category] || categoryColors.other;
+              const advisor  = q.advisorApproval  || {};
+              const hod      = q.hodApproval      || {};
+              const teacher  = q.teacherApproval  || {};
+
+              const advisorStep  = statusStep(advisor.status  || "pending");
+              const hodStep      = statusStep(hod.status      || "pending");
+              const teacherStep  = statusStep(teacher.status  || "pending");
+              const finalStep    = statusStep(q.finalStatus   || "pending");
+
+              return (
+                <div key={q._id} className={`${cat.bg} ${cat.border} border-2 rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden`}>
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between p-5 pb-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <span className="text-2xl mt-1">{cat.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h3 className="font-black text-gray-800 text-lg capitalize">{q.queryType || q.leaveType || q.category}</h3>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cat.badge}`}>
+                            {q.category}
+                          </span>
+                          {q.priority && (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${getPriorityColor(q.priority)}`}>
+                              {q.priority} priority
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1 leading-relaxed">{q.description}</p>
+                        {/* Extra fields */}
+                        {q.courseName && (
+                          <p className="text-sm font-semibold text-purple-700 mt-1">📖 Course: {q.courseName}</p>
+                        )}
+                        {q.leaveType && (
+                          <p className="text-sm font-semibold text-orange-700 mt-1">🏖️ Leave type: {q.leaveType}</p>
+                        )}
+                        {q.startDate && q.endDate && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            📅 {new Date(q.startDate).toLocaleDateString()} → {new Date(q.endDate).toLocaleDateString()}
+                            {q.duration && <span className="font-bold text-orange-600 ml-2">({q.duration} day{q.duration > 1 ? "s" : ""})</span>}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {/* Final Status Badge */}
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm flex-shrink-0 ml-4 ${
+                      q.finalStatus === "approved" ? "bg-green-100 text-green-700 border-2 border-green-300"
+                      : q.finalStatus === "rejected" ? "bg-red-100 text-red-700 border-2 border-red-300"
+                      : "bg-yellow-100 text-yellow-700 border-2 border-yellow-300"
+                    }`}>
+                      {q.finalStatus === "approved" ? <CheckCircle className="w-4 h-4" />
+                        : q.finalStatus === "rejected" ? <XCircle className="w-4 h-4" />
+                        : <RefreshCw className="w-4 h-4" />}
+                      {q.finalStatus?.toUpperCase() || "PENDING"}
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className={`text-sm font-bold ${announcement.textColor} mb-2`}>
-                      {announcement.title}
-                    </p>
-                    <p className={`text-xs font-semibold ${announcement.timeColor}`}>{announcement.time}</p>
+
+                  {/* Approval Pipeline */}
+                  <div className="mx-5 mb-4 p-4 bg-white/70 rounded-xl border border-gray-200">
+                    <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-3">Approval Pipeline</p>
+                    <div className="flex items-center gap-1">
+
+                      {/* Step 1: Advisor */}
+                      <div className="flex-1">
+                        <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
+                          advisor.status === "approved" ? "bg-green-50 border-green-300"
+                          : advisor.status === "rejected" ? "bg-red-50 border-red-300"
+                          : "bg-gray-50 border-gray-200"
+                        }`}>
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${advisorStep.dot}`} />
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-gray-700">Advisor</p>
+                            <p className={`text-xs font-bold ${advisorStep.text}`}>{advisorStep.label}</p>
+                            {advisor.approvedBy && (
+                              <p className="text-xs text-gray-500 truncate">{advisor.approvedBy}</p>
+                            )}
+                           
+                          </div>
+                        </div>
+                      </div>
+
+                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+
+                      {/* Step 2: HOP */}
+                      <div className="flex-1">
+                        <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
+                          hod.status === "approved" ? "bg-green-50 border-green-300"
+                          : hod.status === "rejected" ? "bg-red-50 border-red-300"
+                          : "bg-gray-50 border-gray-200"
+                        }`}>
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${hodStep.dot}`} />
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-gray-700">HOP</p>
+                            <p className={`text-xs font-bold ${hodStep.text}`}>{hodStep.label}</p>
+                            {hod.approvedBy && (
+                              <p className="text-xs text-gray-500 truncate">{hod.approvedBy}</p>
+                            )}
+                            
+                          </div>
+                        </div>
+                      </div>
+
+                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+
+                      
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between px-5 pb-4 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Submitted: {new Date(q.createdAt).toLocaleDateString()} at {new Date(q.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    {q.finalStatus === "pending" && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Delete this query?")) return;
+                          try {
+                            await queryAPI.deleteQuery(q._id);
+                            await fetchDashboardData();
+                          } catch {}
+                        }}
+                        className="text-red-500 hover:text-red-700 font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <XCircle className="w-3 h-3" /> Delete
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Sidebar */}
       <div className={`${sidebarOpen ? "w-72" : "w-0"} bg-white border-r-2 border-gray-200 transition-all duration-300 overflow-hidden shadow-2xl flex flex-col`}>
+        {/* Logo Section */}
         <div className="p-6 border-b-2 bg-gradient-to-r from-blue-600 to-indigo-700 shadow-lg">
           <div className="flex items-center gap-3 text-white">
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
@@ -768,6 +1213,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
+        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">
           <button
             onClick={() => setActiveView("dashboard")}
@@ -790,28 +1236,73 @@ export default function StudentDashboard() {
             }`}
           >
             <FileText className="w-5 h-5" />
-            Query Forms
+            Submit Query
           </button>
 
           <button
-            onClick={() => setShowAppointmentForm(true)}
-            className="w-full flex items-center gap-3 px-4 py-4 rounded-xl text-gray-700 hover:bg-gray-100 hover:shadow transition-all font-semibold"
+            onClick={() => setActiveView("attendance")}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
+              activeView === "attendance"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+                : "text-gray-700 hover:bg-gray-100 hover:shadow"
+            }`}
           >
-            <CalendarCheck className="w-5 h-5" />
-            Book Appointment
+            <UserCheck className="w-5 h-5" />
+            My Attendance
           </button>
 
           <button
-            onClick={() => setShowChatbot(true)}
-            className="w-full flex items-center gap-3 px-4 py-4 rounded-xl text-gray-700 hover:bg-gray-100 hover:shadow transition-all font-semibold"
+            onClick={() => setActiveView("marks")}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
+              activeView === "marks"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+                : "text-gray-700 hover:bg-gray-100 hover:shadow"
+            }`}
           >
-            <Bot className="w-5 h-5" />
-            AI Assistance
+            <BarChart3 className="w-5 h-5" />
+            My Marks
+          </button>
+
+          <button
+            onClick={() => setActiveView("myQueries")}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
+              activeView === "myQueries"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+                : "text-gray-700 hover:bg-gray-100 hover:shadow"
+            }`}
+          >
+            <ClipboardList className="w-5 h-5" />
+            My Queries
+            {queries.filter(q => q.finalStatus === "pending").length > 0 && (
+              <span className="ml-auto bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {queries.filter(q => q.finalStatus === "pending").length}
+              </span>
+            )}
           </button>
         </nav>
+
+        {/* Footer Info */}
+        <div className="p-4 border-t-2 bg-gradient-to-r from-gray-50 to-blue-50">
+          <div className="flex items-center gap-3 mb-3">
+            <Calendar className="w-4 h-4 text-gray-600" />
+            <div>
+              <p className="text-xs font-bold text-gray-900">Current Semester</p>
+              <p className="text-xs text-gray-600">Fall 2024</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Clock className="w-4 h-4 text-gray-600" />
+            <div>
+              <p className="text-xs font-bold text-gray-900">Batch</p>
+              <p className="text-xs text-gray-600">2022</p>
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header */}
         <div className="bg-white border-b-2 shadow-lg">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-4">
@@ -825,25 +1316,28 @@ export default function StudentDashboard() {
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Student Dashboard
                 </h1>
-                <p className="text-xs text-gray-500 font-medium">Your academic command center</p>
+                <p className="text-xs text-gray-500 font-medium">Your academic journey starts here</p>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Search Bar */}
               <div className="hidden md:flex items-center bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl px-4 py-2 w-64 shadow-inner">
                 <Search className="w-4 h-4 text-gray-500 mr-2" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search queries..."
                   className="bg-transparent border-none outline-none text-sm w-full font-medium"
                 />
               </div>
 
+              {/* Notifications */}
               <button className="relative p-3 hover:bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl transition-all shadow-sm">
                 <Bell className="w-5 h-5 text-gray-600" />
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               </button>
 
+              {/* Profile Dropdown */}
               <div className="relative">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -893,10 +1387,15 @@ export default function StudentDashboard() {
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          {activeView === "dashboard" ? <DashboardView /> : <QueryFormView />}
+          {activeView === "dashboard" && DashboardView()}
+          {activeView === "queryForm" && QueryFormView()}
+          {activeView === "attendance" && AttendanceView()}
+          {activeView === "marks" && MarksView()}
+          {activeView === "myQueries" && MyQueriesView()}
         </div>
       </div>
 
+      {/* Appointment Form Modal - keeping original */}
       {showAppointmentForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border-2 border-gray-200">
@@ -988,6 +1487,7 @@ export default function StudentDashboard() {
         </div>
       )}
 
+      {/* Chatbot Modal - keeping original */}
       {showChatbot && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border-2 border-gray-200">

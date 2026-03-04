@@ -609,4 +609,318 @@ router.get('/statistics/dashboard', authenticateToken, async (req, res) => {
   }
 });
 
+// ==================== ADVISOR ROUTES ====================
+// These routes handle advisor-specific actions
+
+// GET /advisors/queries — Returns only leave and academic queries (excludes exam/attendance)
+router.get('/advisors/queries', authenticateToken, async (req, res) => {
+  try {
+    const { status, category } = req.query;
+
+    // Build filter
+    const filter = {};
+    if (status) filter.finalStatus = status;
+
+    // Advisor only sees: leave queries and academic queries (course add/drop/freeze)
+    // Excludes: exam queries and attendance/other queries (handled by teacher)
+    const [leaveQueries, academicQueries] = await Promise.all([
+      LeaveQuery.find(filter).sort({ createdAt: -1 }).lean(),
+      AcademicQuery.find(filter).sort({ createdAt: -1 }).lean()
+    ]);
+
+    const normalize = (q, cat) => {
+      const aa = q.advisorApproval || {};
+      return {
+        _id:           q._id,
+        studentId:     q.studentId,
+        studentName:   q.studentName || 'Unknown',
+        studentRollNo: q.studentId || '',
+        batch:         q.batch || '',
+        queryType:     q.queryType || q.leaveType || cat,
+        category:      cat,
+        description:   q.description || '',
+        priority:      q.priority || 'medium',
+        advisorStatus: aa.status || 'pending',
+        advisorRemarks: aa.comments || '',
+        finalStatus:   q.finalStatus || 'pending',
+        // Extra fields
+        courseName:    q.courseName || '',
+        leaveType:     q.leaveType || '',
+        startDate:     q.startDate || null,
+        endDate:       q.endDate || null,
+        duration:      q.duration || null,
+        documents:     q.documents || [],
+        createdAt:     q.createdAt
+      };
+    };
+
+    let allQueries = [
+      ...leaveQueries.map(q => normalize(q, 'leave')),
+      ...academicQueries.map(q => normalize(q, 'academic'))
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Filter by category if provided
+    if (category) {
+      allQueries = allQueries.filter(q => q.category === category);
+    }
+
+    res.json({ success: true, queries: allQueries });
+  } catch (error) {
+    console.error('Error fetching advisor queries:', error);
+    res.status(500).json({ success: false, message: 'Error fetching queries', error: error.message });
+  }
+});
+
+// PATCH /advisors/queries/:queryId/forward — Forward to HOP
+router.patch('/advisors/queries/:queryId/forward', authenticateToken, async (req, res) => {
+  try {
+    const { queryId } = req.params;
+    const { remarks } = req.body;
+
+    if (!remarks || !remarks.trim()) {
+      return res.status(400).json({ success: false, message: 'Please provide remarks' });
+    }
+
+    const advisorApproval = {
+      status: 'approved',
+      comments: remarks.trim(),
+      approvedBy: `${req.user.firstName} ${req.user.lastName}`,
+      approvedAt: new Date()
+    };
+
+    const updatePayload = { $set: { advisorApproval, finalStatus: 'pending', updatedAt: new Date() } };
+
+    const updated =
+      await LeaveQuery.findByIdAndUpdate(queryId, updatePayload, { new: true }) ||
+      await AcademicQuery.findByIdAndUpdate(queryId, updatePayload, { new: true });
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Query not found' });
+    }
+
+    res.json({ success: true, message: 'Query forwarded to HOP successfully', query: updated });
+  } catch (error) {
+    console.error('Error forwarding query:', error);
+    res.status(500).json({ success: false, message: 'Failed to forward query', error: error.message });
+  }
+});
+
+// PATCH /advisors/queries/:queryId/reject — Reject a query
+router.patch('/advisors/queries/:queryId/reject', authenticateToken, async (req, res) => {
+  try {
+    const { queryId } = req.params;
+    const { remarks } = req.body;
+
+    if (!remarks || !remarks.trim()) {
+      return res.status(400).json({ success: false, message: 'Please provide remarks' });
+    }
+
+    const advisorApproval = {
+      status: 'rejected',
+      comments: remarks.trim(),
+      approvedBy: `${req.user.firstName} ${req.user.lastName}`,
+      approvedAt: new Date()
+    };
+
+    const updatePayload = { $set: { advisorApproval, finalStatus: 'rejected', updatedAt: new Date() } };
+
+    const updated =
+      await LeaveQuery.findByIdAndUpdate(queryId, updatePayload, { new: true }) ||
+      await AcademicQuery.findByIdAndUpdate(queryId, updatePayload, { new: true });
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Query not found' });
+    }
+
+    res.json({ success: true, message: 'Query rejected successfully', query: updated });
+  } catch (error) {
+    console.error('Error rejecting query:', error);
+    res.status(500).json({ success: false, message: 'Failed to reject query', error: error.message });
+  }
+});
+
+
+// ============================================================
+// STUDENT ACADEMIC ROUTES — Attendance & Marks (uploaded by teacher)
+// ============================================================
+
+// GET /students/academic/attendance — student's own attendance records
+router.get('/academic/attendance', authenticateToken, async (req, res) => {
+  try {
+    const mongoose = (await import('mongoose')).default;
+    const Attendance = mongoose.models.Attendance;
+    if (!Attendance) {
+      return res.json({ success: true, attendance: [] });
+    }
+
+    const studentObjectId = req.user._id;
+    const { course } = req.query;
+    const filter = { studentId: studentObjectId };
+    if (course) filter.courseName = { $regex: course, $options: 'i' };
+
+    const records = await Attendance.find(filter).sort({ date: -1 }).lean();
+
+    // Format for frontend
+    const attendance = records.map(r => ({
+      _id:        r._id,
+      date:       r.date,
+      courseName: r.courseName,
+      courseCode: r.courseCode || '',
+      status:     r.status,
+      remarks:    r.remarks || ''
+    }));
+
+    res.json({ success: true, attendance });
+  } catch (error) {
+    console.error('Student attendance fetch error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance', error: error.message });
+  }
+});
+
+// GET /students/academic/attendance/summary
+router.get('/academic/attendance/summary', authenticateToken, async (req, res) => {
+  try {
+    const mongoose = (await import('mongoose')).default;
+    const Attendance = mongoose.models.Attendance;
+    if (!Attendance) {
+      return res.json({ success: true, summary: { overallPercentage: 0, totalPresent: 0, totalAbsent: 0, totalLate: 0, byCourse: [] } });
+    }
+
+    const records = await Attendance.find({ studentId: req.user._id }).lean();
+
+    const total   = records.length;
+    const present = records.filter(r => r.status === 'present').length;
+    const absent  = records.filter(r => r.status === 'absent').length;
+    const late    = records.filter(r => r.status === 'late').length;
+
+    // Group by course
+    const courseMap = {};
+    records.forEach(r => {
+      const key = r.courseName || 'Unknown';
+      if (!courseMap[key]) courseMap[key] = { courseName: key, total: 0, present: 0, absent: 0, late: 0 };
+      courseMap[key].total++;
+      courseMap[key][r.status]++;
+    });
+    const byCourse = Object.values(courseMap).map(c => ({
+      ...c,
+      percentage: c.total > 0 ? parseFloat(((c.present / c.total) * 100).toFixed(1)) : 0
+    }));
+
+    res.json({
+      success: true,
+      summary: {
+        overallPercentage: total > 0 ? parseFloat(((present / total) * 100).toFixed(1)) : 0,
+        totalPresent: present,
+        totalAbsent:  absent,
+        totalLate:    late,
+        totalClasses: total,
+        byCourse
+      }
+    });
+  } catch (error) {
+    console.error('Student attendance summary error:', error);
+    res.status(500).json({ success: false, message: 'Failed', error: error.message });
+  }
+});
+
+// GET /students/academic/marks
+router.get('/academic/marks', authenticateToken, async (req, res) => {
+  try {
+    const mongoose = (await import('mongoose')).default;
+    const Marks = mongoose.models.Marks;
+    if (!Marks) {
+      return res.json({ success: true, marks: [] });
+    }
+
+    const { course, examType } = req.query;
+    const filter = { studentId: req.user._id };
+    if (course)    filter.courseName = { $regex: course, $options: 'i' };
+    if (examType)  filter.examType   = examType;
+
+    const records = await Marks.find(filter).sort({ examDate: -1 }).lean();
+
+    const marks = records.map(r => ({
+      _id:           r._id,
+      courseName:    r.courseName,
+      courseCode:    r.courseCode || '',
+      examType:      r.examType,
+      examDate:      r.examDate,
+      obtainedMarks: r.obtainedMarks,
+      totalMarks:    r.totalMarks,
+      percentage:    r.totalMarks > 0 ? parseFloat(((r.obtainedMarks / r.totalMarks) * 100).toFixed(1)) : 0,
+      remarks:       r.remarks || ''
+    }));
+
+    res.json({ success: true, marks });
+  } catch (error) {
+    console.error('Student marks fetch error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch marks', error: error.message });
+  }
+});
+
+// GET /students/academic/marks/summary
+router.get('/academic/marks/summary', authenticateToken, async (req, res) => {
+  try {
+    const mongoose = (await import('mongoose')).default;
+    const Marks = mongoose.models.Marks;
+    if (!Marks) {
+      return res.json({ success: true, summary: { overallPercentage: 0, totalExams: 0, byCourse: [] } });
+    }
+
+    const records = await Marks.find({ studentId: req.user._id }).lean();
+
+    const totalExams = records.length;
+    const overallPct = totalExams > 0
+      ? parseFloat((records.reduce((sum, r) => sum + (r.totalMarks > 0 ? (r.obtainedMarks / r.totalMarks) * 100 : 0), 0) / totalExams).toFixed(1))
+      : 0;
+
+    // Group by course
+    const courseMap = {};
+    records.forEach(r => {
+      const key = r.courseName || 'Unknown';
+      if (!courseMap[key]) courseMap[key] = { courseName: key, exams: [], totalObtained: 0, totalMax: 0 };
+      courseMap[key].exams.push({ examType: r.examType, obtained: r.obtainedMarks, total: r.totalMarks, date: r.examDate });
+      courseMap[key].totalObtained += r.obtainedMarks;
+      courseMap[key].totalMax      += r.totalMarks;
+    });
+    const byCourse = Object.values(courseMap).map(c => ({
+      courseName:  c.courseName,
+      examCount:   c.exams.length,
+      percentage:  c.totalMax > 0 ? parseFloat(((c.totalObtained / c.totalMax) * 100).toFixed(1)) : 0,
+      exams:       c.exams
+    }));
+
+    res.json({
+      success: true,
+      summary: { overallPercentage: overallPct, totalExams, byCourse }
+    });
+  } catch (error) {
+    console.error('Student marks summary error:', error);
+    res.status(500).json({ success: false, message: 'Failed', error: error.message });
+  }
+});
+
+// ============================================================
+// PUBLIC ANNOUNCEMENTS — No role restriction, any authenticated user
+// ============================================================
+router.get('/announcements/public', authenticateToken, async (req, res) => {
+  try {
+    const mongoose = (await import('mongoose')).default;
+    const Announcement = mongoose.models.Announcement;
+    if (!Announcement) {
+      return res.json({ success: true, announcements: [] });
+    }
+
+    const announcements = await Announcement
+      .find({ isActive: true, targetRoles: 'student' })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ success: true, announcements });
+  } catch (error) {
+    console.error('Student announcements error:', error);
+    res.status(500).json({ success: false, message: 'Failed', error: error.message });
+  }
+});
+
 export default router;

@@ -1,4 +1,4 @@
-// server.js - Updated with Student Dashboard Integration
+// server.js - Updated with Student Dashboard Integration + Teacher Routes + Advisor Routes
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -13,6 +13,9 @@ import fs from 'fs';
 import connectDB from "./config/database.js";
 import authRoutes from "./routes/auth.js";
 import studentDashboardRoutes from "./routes/studentDashboard.js";
+import teacherRoutes from "./routes/teacherRoutes.js";
+import advisorRoutes from "./routes/advisorRoutes.js";
+import hopRoutes from "./routes/hopRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { setupSocketHandlers } from "./utils/socketHandlers.js";
 
@@ -27,7 +30,7 @@ const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || "http://localhost:8080",
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PATCH", "DELETE"],
   },
 });
 
@@ -43,8 +46,8 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: "Too many requests from this IP, please try again later.",
 });
 
@@ -63,20 +66,31 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Serve static files from uploads directory
 app.use('/uploads', express.static(uploadsDir));
 
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/student", studentDashboardRoutes);
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.url}`);
+  next();
+});
+
+// ── Routes ────────────────────────────────────────────────────
+app.use("/api/auth",     authRoutes);
+app.use("/api/students", studentDashboardRoutes);
+app.use("/api/teachers", teacherRoutes);
+app.use("/api/advisors", advisorRoutes);
+app.use("/api/hop",      hopRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
-    message: "Batch Advisor Backend is running",
+    message: "Smart Advisor Backend is running",
     timestamp: new Date().toISOString(),
     services: {
-      database: "connected",
+      database:        "connected",
       studentDashboard: "active",
-      fileUpload: "enabled"
+      teacherDashboard: "active",
+      advisorDashboard: "active",
+      fileUpload:       "enabled"
     }
   });
 });
@@ -87,11 +101,12 @@ app.get("/api", (req, res) => {
     message: "Smart Advisor API",
     version: "1.0.0",
     endpoints: {
-      auth: "/api/auth",
-      studentDashboard: "/api/student",
-      health: "/health"
-    },
-    documentation: "See README.md for full API documentation"
+      auth:     "/api/auth",
+      students: "/api/students",
+      teachers: "/api/teachers",
+      advisors: "/api/advisors",
+      health:   "/health"
+    }
   });
 });
 
@@ -103,21 +118,42 @@ app.use(errorHandler);
 
 // 404 handler (must be last)
 app.use("*", (req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     success: false,
     message: "Route not found",
-    path: req.originalUrl 
+    path: req.originalUrl,
+    availableRoutes: [
+      "/api/auth",
+      "/api/students",
+      "/api/teachers",
+      "/api/advisors",
+      "/health"
+    ]
   });
 });
 
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Socket.IO server running on port ${PORT}`);
-  console.log(`🎓 Student Dashboard API active at /api/student`);
-  console.log(`📁 File uploads enabled at /uploads`);
-  console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:8080"}`);
+  console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║            Smart Advisor System - Backend Server             ║
+╚══════════════════════════════════════════════════════════════╝
+
+🚀 Server running on port ${PORT}
+📡 Socket.IO server active
+🔗 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:8080"}
+
+📋 Active Routes:
+   ✅ /api/auth         - Authentication
+   ✅ /api/students     - Student Dashboard
+   ✅ /api/teachers     - Teacher Dashboard
+   ✅ /api/advisors     - Advisor Dashboard
+   ✅ /api/hop          - HOP Dashboard
+   ✅ /health           - Health Check
+
+📁 File uploads enabled at /uploads
+  `);
 });
 
 export { io };
