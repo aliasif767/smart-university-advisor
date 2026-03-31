@@ -416,12 +416,12 @@ router.get('/queries', async (req, res) => {
     const queryFilter = {};
     if (status) queryFilter.finalStatus = status;
 
-    // Advisor sees: leave, academic/course, other queries + appointments
-    // Exam marks + attendance records are handled by teacher only
-    const [leaveQueries, academicQueries, otherQueries, appointments] = await Promise.all([
+    // Advisor sees: leave and academic/course queries + appointments ONLY
+    // ExamQuery (update-marks, retakes) and OtherQuery (attendance/timetable) are teacher-only
+    const otherQueries = []; // teacher-only — excluded from advisor view
+    const [leaveQueries, academicQueries, appointments] = await Promise.all([
       (!category || category === 'leave')       ? LeaveQuery.find(queryFilter).sort({ createdAt: -1 }).lean()    : [],
       (!category || category === 'academic')    ? AcademicQuery.find(queryFilter).sort({ createdAt: -1 }).lean() : [],
-      (!category || category === 'other')       ? OtherQuery.find(queryFilter).sort({ createdAt: -1 }).lean()    : [],
       (!category || category === 'appointment') ? Appointment.find(status ? { status } : {}).sort({ createdAt: -1 }).lean() : []
     ]);
 

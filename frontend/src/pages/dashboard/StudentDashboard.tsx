@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryAPI, appointmentAPI, statsAPI, studentAcademicAPI } from "@/services/api";
+import AgentChatbot from "./AgentChatbot";
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
@@ -75,10 +76,7 @@ export default function StudentDashboard() {
   const [hopAnnouncements, setHopAnnouncements] = useState([]);
   const [queryFilter, setQueryFilter] = useState("all");
 
-  const [chatMessages, setChatMessages] = useState([
-    { role: "assistant", content: "Hi! I'm your AI assistant. How can I help you today?" }
-  ]);
-  const [chatInput, setChatInput] = useState("");
+  // chatMessages and chatInput removed — AgentChatbot manages its own state
 
   // Fetch dashboard data
   useEffect(() => {
@@ -106,17 +104,38 @@ export default function StudentDashboard() {
     }
   }, [activeView]);
 
+  // Fetch appointments when switching to appointments view
+  useEffect(() => {
+    if (activeView === "myAppointments") {
+      fetchAppointments();
+    }
+  }, [activeView]);
+
+  const fetchAppointments = async () => {
+    setLoading(true);
+    try {
+      const res = await appointmentAPI.getMyAppointments();
+      setAppointments(res.data.appointments || []);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
-      const [queriesRes, statsRes, announcementsRes] = await Promise.all([
+      const [queriesRes, statsRes, announcementsRes, appointmentsRes] = await Promise.all([
         queryAPI.getMyQueries(),
         statsAPI.getDashboard(),
-        studentAcademicAPI.getAnnouncements().catch(() => ({ data: { announcements: [] } }))
+        studentAcademicAPI.getAnnouncements().catch(() => ({ data: { announcements: [] } })),
+        appointmentAPI.getMyAppointments().catch(() => ({ data: { appointments: [] } }))
       ]);
       
       setQueries(queriesRes.data.queries || []);
       setStats(statsRes.data.stats || {});
       setHopAnnouncements(announcementsRes.data.announcements || []);
+      setAppointments(appointmentsRes.data.appointments || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
@@ -341,6 +360,17 @@ export default function StudentDashboard() {
         response = await queryAPI.submitLeave(formData);
         
       } else if (selectedCategory === 'other') {
+        // For attendance issues, require and include courseName/courseCode
+        if (selectedQueryType === 'Attendance Issue') {
+          if (!courseName) {
+            alert("Please enter the course name for attendance issue");
+            setLoading(false);
+            return;
+          }
+          formData.append('courseName', courseName);
+          formData.append('courseCode', courseCode);
+          formData.append('subject', courseName); // OtherQuery stores courseName in 'subject'
+        }
         formData.append('issueType', issueType || selectedQueryType);
         if (attendancePercentage) formData.append('attendancePercentage', attendancePercentage);
         response = await queryAPI.submitOther(formData);
@@ -389,50 +419,7 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleChatSubmit = async () => {
-    if (!chatInput.trim()) return;
-
-    const userMessage = { role: "user", content: chatInput };
-    setChatMessages(prev => [...prev, userMessage]);
-    setChatInput("");
-    setIsTyping(true);
-
-    // Add an empty assistant message that we will "fill" with the stream
-    setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
-
-    try {
-      const response = await fetch("http://localhost:8000/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: chatInput }),
-      });
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedResponse = "";
-
-      while (true) {
-        const { done, value } = await reader!.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value);
-        accumulatedResponse += chunk;
-
-        // Update the LAST message in the array with the new text
-        setChatMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { 
-            role: "assistant", 
-            content: accumulatedResponse 
-          };
-          return updated;
-        });
-        setIsTyping(false); // Hide loader once text starts appearing
-      }
-    } catch (error) {
-      console.error("Streaming error:", error);
-    }
-  };
+  // handleChatSubmit removed — AgentChatbot handles all chat logic internally
 
   const handleLogout = () => {
     logout();
@@ -800,7 +787,7 @@ export default function StudentDashboard() {
               </select>
             </div>
 
-            {(selectedCategory === 'academic' || selectedCategory === 'exam') && (
+            {(selectedCategory === 'academic' || selectedCategory === 'exam' || (selectedCategory === 'other' && selectedQueryType === 'Attendance Issue')) && (
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Course Name *</label>
@@ -1118,60 +1105,110 @@ export default function StudentDashboard() {
                   {/* Approval Pipeline */}
                   <div className="mx-5 mb-4 p-4 bg-white/70 rounded-xl border border-gray-200">
                     <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-3">Approval Pipeline</p>
-                    <div className="flex items-center gap-1">
 
-                      {/* Step 1: Advisor */}
-                      <div className="flex-1">
-                        <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
-                          advisor.status === "approved" ? "bg-green-50 border-green-300"
-                          : advisor.status === "rejected" ? "bg-red-50 border-red-300"
-                          : "bg-gray-50 border-gray-200"
-                        }`}>
-                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${advisorStep.dot}`} />
-                          <div className="min-w-0">
-                            <p className="text-xs font-black text-gray-700">Advisor</p>
-                            <p className={`text-xs font-bold ${advisorStep.text}`}>{advisorStep.label}</p>
-                            {advisor.approvedBy && (
-                              <p className="text-xs text-gray-500 truncate">{advisor.approvedBy}</p>
-                            )}
-                           
+                    {/* Teacher-only pipeline: exam queries (update-marks, retakes) and attendance/other queries */}
+                    {(q.category === "exam" || q.category === "other") ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-1">
+                          <div className="flex-1">
+                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
+                              teacher.status === "approved" ? "bg-green-50 border-green-300"
+                              : teacher.status === "rejected" ? "bg-red-50 border-red-300"
+                              : "bg-gray-50 border-gray-200"
+                            }`}>
+                              <div className={`w-3 h-3 rounded-full flex-shrink-0 ${teacherStep.dot}`} />
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-gray-700">Teacher</p>
+                                <p className={`text-xs font-bold ${teacherStep.text}`}>{teacherStep.label}</p>
+                                {teacher.approvedBy && (
+                                  <p className="text-xs text-gray-500 truncate">{teacher.approvedBy}</p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-
-                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-
-                      {/* Step 2: HOP */}
-                      <div className="flex-1">
-                        <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
-                          hod.status === "approved" ? "bg-green-50 border-green-300"
-                          : hod.status === "rejected" ? "bg-red-50 border-red-300"
-                          : "bg-gray-50 border-gray-200"
-                        }`}>
-                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${hodStep.dot}`} />
-                          <div className="min-w-0">
-                            <p className="text-xs font-black text-gray-700">HOP</p>
-                            <p className={`text-xs font-bold ${hodStep.text}`}>{hodStep.label}</p>
-                            {hod.approvedBy && (
-                              <p className="text-xs text-gray-500 truncate">{hod.approvedBy}</p>
-                            )}
-                            
+                        {/* Rejection reason — only shown when teacher rejected */}
+                        {teacher.status === "rejected" && teacher.comments && (
+                          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-black text-red-600 uppercase tracking-wide">Rejection Reason</p>
+                              <p className="text-xs text-red-700 mt-0.5 leading-relaxed">{teacher.comments}</p>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
+                    ) : (
+                      /* Advisor → HOP pipeline: leave and academic queries */
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-1">
+                          {/* Step 1: Advisor */}
+                          <div className="flex-1">
+                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
+                              advisor.status === "approved" ? "bg-green-50 border-green-300"
+                              : advisor.status === "rejected" ? "bg-red-50 border-red-300"
+                              : "bg-gray-50 border-gray-200"
+                            }`}>
+                              <div className={`w-3 h-3 rounded-full flex-shrink-0 ${advisorStep.dot}`} />
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-gray-700">Advisor</p>
+                                <p className={`text-xs font-bold ${advisorStep.text}`}>{advisorStep.label}</p>
+                                {advisor.approvedBy && (
+                                  <p className="text-xs text-gray-500 truncate">{advisor.approvedBy}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
 
-                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
 
-                      
-                    </div>
+                          {/* Step 2: HOP */}
+                          <div className="flex-1">
+                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
+                              hod.status === "approved" ? "bg-green-50 border-green-300"
+                              : hod.status === "rejected" ? "bg-red-50 border-red-300"
+                              : "bg-gray-50 border-gray-200"
+                            }`}>
+                              <div className={`w-3 h-3 rounded-full flex-shrink-0 ${hodStep.dot}`} />
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-gray-700">HOP</p>
+                                <p className={`text-xs font-bold ${hodStep.text}`}>{hodStep.label}</p>
+                                {hod.approvedBy && (
+                                  <p className="text-xs text-gray-500 truncate">{hod.approvedBy}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        </div>
+
+                        {/* Rejection reason — only shown for whichever stage rejected */}
+                        {advisor.status === "rejected" && advisor.comments && (
+                          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-black text-red-600 uppercase tracking-wide">Advisor — Rejection Reason</p>
+                              <p className="text-xs text-red-700 mt-0.5 leading-relaxed">{advisor.comments}</p>
+                            </div>
+                          </div>
+                        )}
+                        {hod.status === "rejected" && hod.comments && (
+                          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-black text-red-600 uppercase tracking-wide">HOP — Rejection Reason</p>
+                              <p className="text-xs text-red-700 mt-0.5 leading-relaxed">{hod.comments}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Footer */}
                   <div className="flex items-center justify-between px-5 pb-4 text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      Submitted: {new Date(q.createdAt).toLocaleDateString()} at {new Date(q.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
+                    
                     {q.finalStatus === "pending" && (
                       <button
                         onClick={async () => {
@@ -1184,6 +1221,218 @@ export default function StudentDashboard() {
                         className="text-red-500 hover:text-red-700 font-bold flex items-center gap-1 transition-colors"
                       >
                         <XCircle className="w-3 h-3" /> Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const MyAppointmentsView = () => {
+    const getStatusStyle = (status) => {
+      switch (status) {
+        case "confirmed":    return { bg: "bg-green-50",  border: "border-green-300",  dot: "bg-green-500",  text: "text-green-700",  label: "Confirmed"   };
+        case "cancelled":    return { bg: "bg-red-50",    border: "border-red-300",    dot: "bg-red-500",    text: "text-red-700",    label: "Cancelled"   };
+        case "completed":    return { bg: "bg-blue-50",   border: "border-blue-300",   dot: "bg-blue-500",   text: "text-blue-700",   label: "Completed"   };
+        case "rescheduled":  return { bg: "bg-purple-50", border: "border-purple-300", dot: "bg-purple-500", text: "text-purple-700", label: "Rescheduled" };
+        default:             return { bg: "bg-yellow-50", border: "border-yellow-300", dot: "bg-yellow-500", text: "text-yellow-700", label: "Pending"     };
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-green-600 to-emerald-700 rounded-2xl p-6 text-white shadow-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black flex items-center gap-3">
+                <CalendarCheck className="w-7 h-7" />
+                My Appointments
+              </h2>
+              <p className="text-green-100 mt-1">Track all your advisor appointment requests</p>
+            </div>
+            <div className="flex gap-3">
+              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
+                <p className="text-2xl font-black">{appointments.length}</p>
+                <p className="text-xs text-green-100">Total</p>
+              </div>
+              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
+                <p className="text-2xl font-black">{appointments.filter(a => a.status === "confirmed").length}</p>
+                <p className="text-xs text-green-100">Confirmed</p>
+              </div>
+              <div className="bg-white/20 rounded-xl px-4 py-2 text-center">
+                <p className="text-2xl font-black">{appointments.filter(a => a.status === "pending").length}</p>
+                <p className="text-xs text-green-100">Pending</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Book New Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowAppointmentForm(true)}
+            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 transition-all"
+          >
+            <CalendarCheck className="w-5 h-5" />
+            Book New Appointment
+          </button>
+        </div>
+
+        {/* Appointments List */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-10 h-10 animate-spin text-green-600" />
+          </div>
+        ) : appointments.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-2xl border-2 border-gray-200 shadow">
+            <CalendarCheck className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-xl font-bold text-gray-600">No appointments yet</p>
+            <p className="text-sm text-gray-500 mt-1">Book an appointment with your advisor to get started</p>
+            <button
+              onClick={() => setShowAppointmentForm(true)}
+              className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-xl transition-all"
+            >
+              Book Appointment
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {appointments.map((apt) => {
+              const s = getStatusStyle(apt.status);
+              return (
+                <div key={apt._id} className={`${s.bg} ${s.border} border-2 rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden`}>
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between p-5 pb-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="bg-white p-2 rounded-xl shadow border border-gray-200 flex-shrink-0">
+                        <CalendarCheck className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h3 className="font-black text-gray-800 text-lg capitalize">{apt.appointmentType} Appointment</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 leading-relaxed">{apt.reason}</p>
+
+                        {/* Preferred date/time */}
+                        <div className="flex flex-wrap gap-3 mt-2">
+                          <span className="flex items-center gap-1 text-xs font-semibold text-gray-600">
+                            <Calendar className="w-3.5 h-3.5" />
+                            Appointment Time: {new Date(apt.preferredDate).toLocaleDateString()} at {apt.preferredTime}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm flex-shrink-0 ml-4 border-2 ${s.bg} ${s.border} ${s.text}`}>
+                      <div className={`w-2.5 h-2.5 rounded-full ${s.dot}`} />
+                      {s.label.toUpperCase()}
+                    </div>
+                  </div>
+
+                  {/* Advisor Response Section — shown only when confirmed, cancelled, or rescheduled */}
+                  {(apt.status === "confirmed" || apt.status === "cancelled" || apt.status === "rescheduled" || apt.status === "completed") && (
+                    <div className="mx-5 mb-4 p-4 bg-white/70 rounded-xl border border-gray-200 space-y-3">
+                      <p className="text-xs font-black text-gray-500 uppercase tracking-wider">Advisor Response</p>
+
+                      {/* Status banner */}
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 ${
+                        apt.status === "confirmed" || apt.status === "completed" ? "bg-green-50 border-green-200"
+                        : apt.status === "cancelled" ? "bg-red-50 border-red-200"
+                        : "bg-purple-50 border-purple-200"
+                      }`}>
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${s.dot}`} />
+                        <p className={`text-xs font-black uppercase tracking-wide ${s.text}`}>
+                          {apt.status === "confirmed"    ? "✅ Appointment Confirmed"
+                           : apt.status === "cancelled"  ? "❌ Appointment Cancelled"
+                           : apt.status === "rescheduled"? "🔄 Appointment Rescheduled"
+                           : "✔️ Appointment Completed"}
+                        </p>
+                      </div>
+
+                      {/* Meeting date & time — prominent box for confirmed/rescheduled */}
+                      {(apt.status === "confirmed" || apt.status === "rescheduled") && (apt.confirmedDate || apt.confirmedTime) && (
+                        <div className="bg-green-600 rounded-xl p-4 text-white shadow-md">
+                          <p className="text-xs font-black uppercase tracking-widest text-green-100 mb-2">📅 Your Meeting is Scheduled</p>
+                          <div className="flex items-center gap-6 flex-wrap">
+                            {apt.confirmedDate && (
+                              <div className="flex items-center gap-2">
+                                <div className="bg-white/20 p-2 rounded-lg">
+                                  <Calendar className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                  <p className="text-xs text-green-100 font-semibold">Date</p>
+                                  <p className="text-base font-black">
+                                    {new Date(apt.confirmedDate).toLocaleDateString("en-US", {
+                                      weekday: "long", year: "numeric", month: "long", day: "numeric"
+                                    })}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            {apt.confirmedTime && (
+                              <div className="flex items-center gap-2">
+                                <div className="bg-white/20 p-2 rounded-lg">
+                                  <Clock className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                  <p className="text-xs text-green-100 font-semibold">Time</p>
+                                  <p className="text-base font-black">{apt.confirmedTime}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      
+
+                      {/* Advisor comments */}
+                      {apt.advisorComments && (
+                        <div className={`flex items-start gap-2 px-3 py-2 rounded-xl border ${
+                          apt.status === "cancelled" ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"
+                        }`}>
+                          {apt.status === "cancelled"
+                            ? <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                            : <CheckCircle className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                          }
+                          <p className={`text-xs leading-relaxed ${
+                            apt.status === "cancelled" ? "text-red-700" : "text-gray-600"
+                          }`}>
+                            {apt.status === "cancelled" && (
+                              <span className="font-black text-red-600 mr-1">Reason:</span>
+                            )}
+                            {apt.advisorComments}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between px-5 pb-4 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Submitted: {new Date(apt.createdAt).toLocaleDateString()} at {new Date(apt.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    {apt.status === "pending" && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Cancel this appointment?")) return;
+                          try {
+                            await appointmentAPI.cancel(apt._id);
+                            await fetchAppointments();
+                          } catch {}
+                        }}
+                        className="text-red-500 hover:text-red-700 font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <XCircle className="w-3 h-3" /> Cancel
                       </button>
                     )}
                   </div>
@@ -1276,6 +1525,23 @@ export default function StudentDashboard() {
             {queries.filter(q => q.finalStatus === "pending").length > 0 && (
               <span className="ml-auto bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {queries.filter(q => q.finalStatus === "pending").length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveView("myAppointments")}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
+              activeView === "myAppointments"
+                ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg transform scale-105"
+                : "text-gray-700 hover:bg-gray-100 hover:shadow"
+            }`}
+          >
+            <CalendarCheck className="w-5 h-5" />
+            My Appointments
+            {appointments.filter(a => a.status === "confirmed").length > 0 && (
+              <span className="ml-auto bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {appointments.filter(a => a.status === "confirmed").length}
               </span>
             )}
           </button>
@@ -1392,6 +1658,7 @@ export default function StudentDashboard() {
           {activeView === "attendance" && AttendanceView()}
           {activeView === "marks" && MarksView()}
           {activeView === "myQueries" && MyQueriesView()}
+          {activeView === "myAppointments" && MyAppointmentsView()}
         </div>
       </div>
 
@@ -1487,67 +1754,15 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {/* Chatbot Modal - keeping original */}
+      {/* Agentic Chatbot — voice + actions */}
       {showChatbot && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border-2 border-gray-200">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-5 flex items-center justify-between text-white rounded-t-3xl">
-              <div className="flex items-center gap-3">
-                <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm shadow-lg">
-                  <Bot className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-xl">AI Assistant</h3>
-                  <p className="text-sm text-blue-100 font-medium">Ask me anything about applications, courses, or policies</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowChatbot(false)}
-                className="hover:bg-white/20 p-2 rounded-xl transition-all"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-br from-gray-50 to-blue-50">
-              {chatMessages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-4 rounded-2xl shadow-lg ${
-                      msg.role === "user"
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-                        : "bg-white text-gray-800 border-2 border-gray-200"
-                    }`}
-                  >
-                    <p className="text-sm leading-relaxed font-medium">{msg.content}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t-2 p-5 bg-white rounded-b-3xl">
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
-                  placeholder="Type your question here..."
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm font-medium"
-                />
-                <Button onClick={handleChatSubmit} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-6 rounded-xl shadow-lg">
-                  <Send className="h-5 w-5" />
-                </Button>
-              </div>
-              <p className="text-xs text-gray-500 mt-3 font-medium">
-                💡 Try asking: "How do I submit a leave application?" or "What's the deadline for course add/drop?"
-              </p>
-            </div>
-          </div>
-        </div>
+        <AgentChatbot
+          user={user}
+          onClose={() => setShowChatbot(false)}
+          token={localStorage.getItem("token")}
+          onAppointmentBooked={fetchAppointments}
+          onQuerySubmitted={fetchDashboardData}
+        />
       )}
     </div>
   );

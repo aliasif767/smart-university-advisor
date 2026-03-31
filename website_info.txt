@@ -1,228 +1,315 @@
-# Website Information Guide
+# Smart Advisor — Student Portal Knowledge Base
+# This file is used by the AI chatbot to answer student questions accurately.
+
+## ABOUT THE SYSTEM
+
+Smart Advisor is a university student management portal. It connects students, teachers, advisors, and the Head of Program (HOP) in a structured workflow. Students can submit queries, book appointments with their advisor, view attendance and marks, and get help from an AI assistant.
+
+There are four roles in the system:
+- Student: submits queries, books appointments, views academic records
+- Teacher: marks attendance, uploads marks, handles exam and attendance queries
+- Advisor: reviews leave and academic queries, manages appointments, monitors student progress
+- HOP (Head of Program): gives final approval on advisor-forwarded queries, manages announcements
+
+
+## DASHBOARD OVERVIEW
+
+After logging in, students see the main dashboard with:
+- Pending Requests count
+- Approved queries count
+- Active Courses count
+- Recent applications list
+- Announcements from HOP
+- Quick action buttons: Submit New Query, Book Appointment, AI Assistant
+
+Sidebar navigation includes:
+- Dashboard (home)
+- Submit Query (form to submit a new request)
+- My Attendance (personal attendance records per course)
+- My Marks (exam and assignment marks per course)
+- My Queries (all submitted queries with status and approval pipeline)
+- My Appointments (all booked appointments with advisor response)
+
+
+## HOW TO SUBMIT A QUERY
+
+Students can submit four types of queries through the portal. Each type goes to the correct person for review.
+
+### Step-by-step:
+1. Click "Submit Query" in the sidebar or "Submit New Query" button on the dashboard
+2. Choose a category tab: Academic, Exam, Leave, or Other
+3. Select the specific query type from the dropdown
+4. Fill in the required fields (they change depending on the type)
+5. Add a description explaining your situation
+6. Optionally attach a supporting document (PDF, JPG, PNG, DOC — max 5MB)
+7. Click Submit
+
+### Query Categories and Types:
+
+**Academic Queries** (go to Advisor → HOP):
+- Course Add/Drop: request to add or drop a course this semester
+- Course Freeze: request to freeze a course (pause enrollment)
+  - Required fields: Course Name, Course Code (optional), Description
+
+**Exam Queries** (go to Teacher only):
+- Mid Retake: request to retake a midterm exam
+- Final Retake: request to retake a final exam
+- Update Marks: request correction of recorded marks
+  - Required fields: Course Name, Course Code (optional), Exam Type (mid/final/quiz), Current Marks (optional), Description
+
+**Leave Queries** (go to Advisor → HOP):
+- Sick Leave: medical absence
+- Marriage Leave: leave for marriage ceremony
+- Urgent Leave: emergency or urgent personal matter
+  - Required fields: Leave Type, Start Date, End Date, Description
+
+**Other Queries** (go to Teacher only):
+- Attendance Issue: dispute or correction of attendance record
+  - Required fields: Course Name, Course Code, Description
+- Timetable Issue: problems with class schedule
+  - Required fields: Description only
+
+### Priority Levels:
+Queries can be set to low, medium, or high priority. Default is medium.
+
+### Supported file types for attachments:
+PDF, DOC, DOCX, JPG, JPEG, PNG — maximum 5MB per file.
+
+
+## APPROVAL PIPELINE
+
+Different query types follow different approval paths.
+
+### Exam and Attendance/Other Queries — Teacher Only:
+The assigned teacher reviews and approves or rejects the query. No advisor or HOP involvement.
+- If teacher approves → query is approved (finalStatus: approved)
+- If teacher rejects → query is rejected (finalStatus: rejected) with a rejection reason
+
+### Leave and Academic Queries — Advisor then HOP:
+1. Advisor reviews first: can approve (forward to HOP) or reject
+2. If advisor approves → HOP reviews next: can approve or reject
+3. If HOP approves → query is fully approved (finalStatus: approved)
+4. If advisor or HOP rejects → query is rejected (finalStatus: rejected) with a rejection reason
+
+### Status values:
+- pending: waiting for review
+- approved: fully approved by all required parties
+- rejected: rejected by teacher, advisor, or HOP
+
+Students can see the current approval stage and any rejection reasons on the My Queries page.
+
+
+## HOW TO VIEW MY QUERIES
+
+1. Click "My Queries" in the sidebar
+2. All submitted queries are shown as cards
+3. Filter by: All, Pending, Approved, Rejected
+4. Each card shows:
+   - Query type and category
+   - Priority badge
+   - Description
+   - Course name (if applicable)
+   - Leave dates (if applicable)
+   - Final status badge (PENDING / APPROVED / REJECTED)
+   - Approval Pipeline showing who reviewed it and the outcome
+   - Rejection reason (shown in red only when rejected)
+   - Submission date and time
+5. Pending queries can be deleted using the Delete button on the card
+
 
 ## HOW TO BOOK AN APPOINTMENT
 
-Follow these simple steps to book an appointment on our website:
+Students can book an appointment with their advisor through the portal.
 
-1. Visit the homepage at www.yourwebsite.com
-2. Click on the "Book Appointment" button in the navigation menu
-3. Select your preferred service from the dropdown menu
-4. Choose an available date from the calendar
-5. Select a time slot that works for you
-6. Fill in your personal details:
-   - Full Name
-   - Email Address
-   - Phone Number
-   - Additional notes (optional)
-7. Click "Confirm Booking" to submit your appointment
-8. You will receive a confirmation email within 5 minutes
-9. A calendar invite will also be sent to your email
+### Method 1 — Dashboard button:
+1. Click "Book Appointment" on the main dashboard quick actions
+2. A form appears asking for:
+   - Appointment Type (Academic / Course / Career / Personal / Counseling)
+   - Preferred Date
+   - Preferred Time
+   - Reason for the appointment
+3. Click "Book Appointment" to submit
 
-You can also call us directly at +1-234-567-8900 to book over the phone.
+### Method 2 — My Appointments page:
+1. Click "My Appointments" in the sidebar
+2. Click "Book New Appointment" button at the top
+3. Fill in the same form fields
+4. Submit
 
-## HOW TO WRITE A QUERY OR SUBMIT A QUESTION
+### Method 3 — AI Assistant:
+Say "Book an appointment for me" to the AI chatbot and it will collect all details through conversation and submit it automatically.
 
-To submit a query or ask a question:
+### Appointment Types:
+- academic: academic planning and course guidance
+- course: specific course-related advice
+- career: career planning and advice
+- personal: personal matters
+- counseling: counseling and wellbeing support
 
-1. Navigate to the "Contact Us" page from the main menu
-2. Click on "Submit Query" or "Ask Question" button
-3. Fill in the query form with the following information:
-   - Your full name
-   - Valid email address
-   - Subject line describing your query
-   - Detailed message explaining your question or concern
-4. Optional: Attach relevant files (PDF, images, documents up to 10MB)
-5. Complete the CAPTCHA verification
-6. Click "Submit Query" button
-7. Our support team will respond within 24-48 business hours
-8. You'll receive a confirmation email with a ticket number
+### After booking:
+The appointment will appear on your My Appointments page with status "Pending". Your advisor will review it and either confirm or cancel it. You will see their response, confirmed date and time, and any comments directly on the My Appointments page.
 
-For urgent queries, please call our support hotline.
+### Appointment Statuses:
+- Pending: waiting for advisor to respond
+- Confirmed: advisor has accepted and set a date/time
+- Rescheduled: advisor has set a different date/time
+- Cancelled: advisor has cancelled (cancellation reason shown)
+- Completed: the meeting has taken place
 
-## SERVICES WE OFFER
 
-Our comprehensive services include:
+## HOW TO VIEW MY APPOINTMENTS
 
-### Consultation Services
-- Initial consultation (free for first visit)
-- Expert advice and recommendations
-- Personalized solutions
-- Follow-up consultations
+1. Click "My Appointments" in the sidebar
+2. All appointments are shown as cards
+3. Summary counts at the top show Total, Confirmed, and Pending counts
+4. Each card shows:
+   - Appointment type and reason
+   - Requested date and time
+   - Status badge (color coded)
+   - Advisor Response section (appears once advisor acts):
+     - For Confirmed: a green box showing the confirmed meeting date and time
+     - For Cancelled: a red box showing the cancellation reason
+     - For Rescheduled: green box with the new date and time
+5. Pending appointments can be cancelled using the Cancel button
 
-### Technical Support
-- 24/7 technical assistance
-- Remote troubleshooting
-- On-site support available
-- Emergency support services
 
-### Custom Solutions
-- Tailored packages for individuals and businesses
-- Scalable solutions
-- Integration services
-- Custom development
+## HOW TO VIEW ATTENDANCE
 
-### Training and Workshops
-- Beginner to advanced training
-- Hands-on workshops
-- Certification programs
-- Group training sessions
+1. Click "My Attendance" in the sidebar
+2. All attendance records are shown, sorted by most recent date
+3. Each record shows: date, course name, course code, status (present/absent/late), and remarks
+4. Attendance is recorded by your assigned teacher
+5. If you believe an attendance record is wrong, submit an Attendance Issue query
 
-### Maintenance Services
-- Regular maintenance packages
-- Preventive maintenance
-- Annual maintenance contracts
-- Priority support for maintenance clients
 
-## BUSINESS HOURS
+## HOW TO VIEW MARKS
 
-Our office hours are:
+1. Click "My Marks" in the sidebar
+2. All exam and assignment marks are shown
+3. Each record shows: course name, course code, exam type, exam date, marks obtained, total marks, percentage, and remarks
+4. Marks are uploaded by your assigned teacher
+5. If you believe marks are recorded incorrectly, submit an Update Marks query (exam category)
 
-- Monday to Friday: 9:00 AM - 6:00 PM
-- Saturday: 10:00 AM - 4:00 PM
-- Sunday: Closed
-- Public Holidays: Closed
 
-Emergency support is available 24/7 for premium clients.
+## AI ASSISTANT
 
-Online services and query submission are available 24/7.
+The AI assistant can help students in two ways:
 
-## CONTACT INFORMATION
+### Guidance Mode (asking "how"):
+Ask questions like:
+- "How do I book an appointment?"
+- "What is the leave application process?"
+- "How to request a course drop?"
+- "What documents do I need for sick leave?"
+- "What happens after I submit a query?"
+The AI will explain the process step by step.
 
-Get in touch with us:
+### Action Mode (saying "do it for me"):
+Say things like:
+- "Book an appointment for me"
+- "Apply for sick leave"
+- "Drop a course for me"
+- "Submit an attendance issue"
+- "Check my query status"
+- "Check my appointments"
+The AI will ask you each required detail one by one through conversation, show you a summary, and submit the request after you confirm.
 
-- Email: support@yourwebsite.com
-- Sales: sales@yourwebsite.com
-- Technical Support: tech@yourwebsite.com
-- Phone: +1-234-567-8900
-- Toll-Free: 1-800-123-4567
-- WhatsApp: +1-234-567-8900
-- Address: 123 Business Street, Suite 100, City Name, State 12345, Country
+The AI assistant can:
+- Book advisor appointments
+- Submit leave queries (sick, marriage, urgent)
+- Submit academic queries (add/drop, freeze)
+- Submit exam queries (retake, marks update)
+- Submit other queries (attendance, timetable)
+- Check the status of your submitted queries
+- Check your booked appointments
 
-Social Media:
-- Facebook: facebook.com/yourwebsite
-- Twitter: @yourwebsite
-- LinkedIn: linkedin.com/company/yourwebsite
-- Instagram: @yourwebsite
 
-## PAYMENT METHODS
+## QUERY STATUS TRACKING
 
-We accept the following payment methods:
+After submitting a query, students can track it in My Queries:
 
-- Credit Cards (Visa, Mastercard, American Express)
-- Debit Cards
-- PayPal
-- Bank Transfers
-- Wire Transfers
-- Cryptocurrency (Bitcoin, Ethereum)
-- Payment Plans (available for services over $500)
+- The overall status shows at the top right of each card as PENDING, APPROVED, or REJECTED
+- The Approval Pipeline below shows each reviewer's status individually
+- For exam and attendance queries: only the Teacher step is shown
+- For leave and academic queries: Advisor and HOP steps are shown in order
+- If a query is rejected at any stage, the rejection reason from that reviewer is shown in a red box below the pipeline
+- Queries with pending status can be deleted; approved or rejected queries cannot be deleted
 
-All transactions are secure and encrypted with SSL technology.
 
-## CANCELLATION AND REFUND POLICY
+## ANNOUNCEMENTS
 
-### Appointment Cancellations
-- Appointments can be cancelled up to 24 hours before scheduled time
-- Cancellations within 24 hours may incur a 50% fee
-- No-shows will be charged the full appointment fee
-- You can reschedule for free up to 48 hours in advance
+HOP (Head of Program) posts announcements that are visible to all students on the main dashboard. These may include exam schedules, university events, urgent notices, or general information.
 
-### Service Cancellations
-- Services can be cancelled within 14 days of purchase for full refund
-- After 14 days, cancellation fees may apply
-- Refunds are processed within 5-7 business days
 
-### How to Cancel
-1. Log into your account
-2. Go to "My Bookings" or "My Services"
-3. Click "Cancel" on the relevant item
-4. Provide a reason (optional)
-5. Confirm cancellation
+## ROLES AND RESPONSIBILITIES
 
-Or call us at +1-234-567-8900 to cancel.
+### Student
+- Submits queries and appointments
+- Views own attendance, marks, queries, appointments
+- Can delete pending queries
+- Can cancel pending appointments
+
+### Teacher
+- Handles exam queries (retake requests, marks updates)
+- Handles other queries (attendance issues, timetable issues)
+- Marks student attendance (present/absent/late per course)
+- Uploads exam and assignment marks
+- Can approve or reject teacher-handled queries with comments
+
+### Advisor
+- Handles leave queries (sick, marriage, urgent) and academic queries (add/drop, freeze)
+- Can approve (forward to HOP) or reject those queries with comments
+- Confirms or cancels student appointment requests
+- Monitors student attendance and marks
+- Registers new students and assigns teachers
+
+### HOP (Head of Program)
+- Gives final approval on advisor-forwarded leave and academic queries
+- Can approve or reject with comments
+- Views all confirmed appointments
+- Posts announcements to all users
+
 
 ## FREQUENTLY ASKED QUESTIONS
 
-### Q: How long does a typical appointment take?
-A: Appointments typically last 30-60 minutes depending on the service selected. Initial consultations may take up to 90 minutes.
+### Q: How long does approval take?
+A: There is no fixed deadline. The query moves through the pipeline as each reviewer acts. You can track the current stage in My Queries at any time.
 
-### Q: Can I reschedule my appointment?
-A: Yes, you can reschedule by logging into your account and selecting a new date/time, or by calling us at +1-234-567-8900. Free rescheduling is available up to 48 hours before your appointment.
+### Q: Can I submit multiple queries at the same time?
+A: Yes. You can submit as many queries as needed. Each is tracked independently.
 
-### Q: Do you offer emergency services?
-A: Yes, emergency services are available 24/7 for premium clients. Standard clients can request emergency support by calling our hotline and paying an additional emergency fee.
+### Q: Can I cancel a query after submitting?
+A: Yes, but only if the query is still pending. Once a query has been approved or rejected, it cannot be deleted.
 
-### Q: What documents do I need to bring?
-A: Please bring a valid ID, any relevant documents related to your service request, and confirmation email. Specific requirements will be mentioned in your confirmation email.
+### Q: What happens if my query is rejected?
+A: The query is marked as Rejected and the reviewer's reason is shown in red on your My Queries page. You can submit a new query if the situation changes.
 
-### Q: Is parking available?
-A: Yes, we offer free parking for all clients. The parking lot is located at the rear of the building with dedicated visitor spots.
+### Q: Who reviews my leave query?
+A: First your Advisor reviews it. If the Advisor approves, it is forwarded to the HOP for final approval. If either rejects it, you will see their rejection reason.
 
-### Q: Do you offer virtual consultations?
-A: Yes, we offer video consultations via Zoom, Google Meet, or Microsoft Teams. Select "Virtual Consultation" when booking.
+### Q: Who reviews my exam query (retake or marks update)?
+A: Your assigned Teacher reviews it. The Advisor and HOP are not involved in exam queries.
 
-### Q: How do I update my contact information?
-A: Log into your account, go to "Profile Settings", and update your information. You can also contact us to update your details.
+### Q: Who reviews my attendance issue?
+A: Your assigned Teacher reviews it. The Advisor and HOP are not involved.
 
-### Q: What if I'm running late for my appointment?
-A: Please call us immediately at +1-234-567-8900. We can accommodate delays up to 15 minutes, but longer delays may require rescheduling.
+### Q: What happens after my appointment is confirmed?
+A: You will see the confirmed date and time in a green box on your My Appointments page. Attend the meeting at that scheduled time.
 
-### Q: Do you offer group discounts?
-A: Yes, we offer discounts for groups of 5 or more. Contact our sales team at sales@yourwebsite.com for group rates.
+### Q: Can I cancel an appointment?
+A: Yes, but only if the appointment is still in Pending status. Click the Cancel button on the appointment card in My Appointments.
 
-### Q: Is my information secure?
-A: Yes, we use industry-standard encryption and security measures. We are GDPR and HIPAA compliant. Your data is never shared with third parties without consent.
+### Q: What if I need to check my attendance percentage?
+A: Go to My Attendance in the sidebar. All records are listed with present, absent, and late statuses per course. If you believe a record is wrong, submit an Attendance Issue query.
 
-## ACCOUNT MANAGEMENT
+### Q: How do I report a wrong mark?
+A: Submit an Update Marks query under the Exam category. Select the course, exam type, enter your current marks, and describe the issue. Your teacher will review it.
 
-### Creating an Account
-1. Click "Sign Up" on the homepage
-2. Enter your email and create a password
-3. Verify your email address
-4. Complete your profile
-5. Start booking services
+### Q: Can the AI assistant actually submit things for me?
+A: Yes. Tell the AI "Book an appointment for me" or "Apply for sick leave" and it will collect all required details through conversation and submit the request after you confirm the summary. You will see the result immediately in My Appointments or My Queries.
 
-### Account Benefits
-- Save your information for faster booking
-- View booking history
-- Access invoices and receipts
-- Receive exclusive offers
-- Priority booking for events
+### Q: What file types can I attach to a query?
+A: PDF, DOC, DOCX, JPG, JPEG, and PNG files are accepted. Maximum size is 5MB per file.
 
-### Password Reset
-If you forget your password:
-1. Click "Forgot Password" on login page
-2. Enter your email address
-3. Check your email for reset link
-4. Create a new password
-5. Log in with new credentials
-
-## PRIVACY AND SECURITY
-
-We take your privacy seriously:
-- All data is encrypted
-- We never sell your information
-- You can request data deletion at any time
-- We comply with GDPR, CCPA, and other privacy regulations
-- Regular security audits
-- Two-factor authentication available
-
-## ACCESSIBILITY
-
-Our website and services are accessible:
-- Screen reader compatible
-- Keyboard navigation supported
-- High contrast mode available
-- Text size adjustable
-- Wheelchair accessible facilities
-- Sign language interpretation available on request
-
-## QUALITY ASSURANCE
-
-We maintain the highest standards:
-- Certified professionals
-- Regular quality checks
-- Customer satisfaction surveys
-- Continuous improvement programs
-- Industry-certified practices
-
-For any additional questions not covered here, please contact us through our query form or call our support line.
+### Q: What is the batch and semester used for?
+A: Your batch (e.g. 2022) and semester are assigned when your advisor registers you. They are used to group students and link you to the correct advisor and teacher.
