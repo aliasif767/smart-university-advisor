@@ -388,7 +388,7 @@ router.patch('/queries/:queryId/resolve', authenticateToken, async (req, res) =>
     }
 
     const resolvedStatus = action === 'rejected' ? 'rejected' : 'approved';
-    const finalStatus    = resolvedStatus === 'rejected' ? 'rejected' : 'pending';
+    const finalStatus    = resolvedStatus === 'rejected' ? 'rejected' : 'approved';
 
     const teacherApproval = {
       status:     resolvedStatus,
@@ -403,8 +403,7 @@ router.patch('/queries/:queryId/resolve', authenticateToken, async (req, res) =>
 
     const updated =
       await ExamQuery.findByIdAndUpdate(queryId, updatePayload, { new: true }) ||
-      await OtherQuery.findByIdAndUpdate(queryId, updatePayload, { new: true }) ||
-      await AcademicQuery.findByIdAndUpdate(queryId, updatePayload, { new: true });
+      await OtherQuery.findByIdAndUpdate(queryId, updatePayload, { new: true });
 
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Query not found' });

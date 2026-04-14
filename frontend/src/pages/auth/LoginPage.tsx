@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import hitecImage1 from "@/university-images/HITEC-1.jpg";
+import hitecImage2 from "@/university-images/Hitec-2.jpeg";
+import hitecImage3 from "@/university-images/Hitec-3.jpeg"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,9 +22,9 @@ export default function LoginPage() {
 
   // Array of images for slideshow
   const heroImages = [
-    "https://www.hitecuni.edu.pk/www/img/slider/1.jpg",
-    "https://www.hitecuni.edu.pk/www/img/slider/3.jpg",
-    "https://i.dawn.com/primary/2020/02/5e3893cee484e.jpg"
+    hitecImage1,
+    hitecImage2,
+    hitecImage3
   ];
 
   // Auto-rotate images every 3 seconds

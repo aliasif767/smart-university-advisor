@@ -48,14 +48,14 @@ const API_BASE =
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(
-    localStorage.getItem("token"),
+    sessionStorage.getItem("token"),
   );
   const [loading, setLoading] = useState(true);
 
   // Check if user is authenticated on app load
   useEffect(() => {
     const checkAuth = async () => {
-      const savedToken = localStorage.getItem("token");
+      const savedToken = sessionStorage.getItem("token");
       if (savedToken) {
         try {
           const response = await fetch(`${API_BASE}/auth/profile`, {
@@ -69,12 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(data.data.user);
             setToken(savedToken);
           } else {
-            localStorage.removeItem("token");
+            sessionStorage.removeItem("token");
             setToken(null);
           }
         } catch (error) {
           console.error("Auth check failed:", error);
-          localStorage.removeItem("token");
+          sessionStorage.removeItem("token");
           setToken(null);
         }
       }
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         setUser(data.data.user);
         setToken(data.data.token);
-        localStorage.setItem("token", data.data.token);
+        sessionStorage.setItem("token", data.data.token);
         toast.success("Login successful!");
         return true;
       } else {
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         setUser(data.data.user);
         setToken(data.data.token);
-        localStorage.setItem("token", data.data.token);
+        sessionStorage.setItem("token", data.data.token);
         toast.success("Registration successful!");
         return true;
       } else {
@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
     toast.success("Logged out successfully");
   };
 

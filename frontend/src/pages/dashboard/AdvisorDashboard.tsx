@@ -59,21 +59,18 @@ export default function AdvisorDashboard() {
     forwardedToHOP: 0
   });
 
-  // Registration Form States
-  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
-  const [regFirstName, setRegFirstName] = useState("");
-  const [regLastName, setRegLastName] = useState("");
-  const [regEmail, setRegEmail] = useState("");
-  const [regRollNo, setRegRollNo] = useState("");
-  const [regSemester, setRegSemester] = useState("");
-  const [regSection, setRegSection] = useState("");
-
   // Teacher Assignment States — Section-wise
   const [showAssignTeacher, setShowAssignTeacher] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);       // kept for individual fallback
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
 
-  // Section-wise assignment modal
+  // Assign-Section modal state
+  const [showAssignSection, setShowAssignSection] = useState(false);
+  const [sectionAssignStudent, setSectionAssignStudent] = useState<any>(null);
+  const [assignSectionValue, setAssignSectionValue] = useState("");
+  const [assignSemesterValue, setAssignSemesterValue] = useState("");
+
+  // Section-wise bulk assign modal
   const [showSectionAssign, setShowSectionAssign] = useState(false);
   const [sectionAssignTeacherId, setSectionAssignTeacherId] = useState("");
   const [sectionAssignSections, setSectionAssignSections] = useState<string[]>([]);
@@ -164,44 +161,24 @@ export default function AdvisorDashboard() {
     }
   };
 
-  const handleRegisterStudent = async () => {
-    if (!regFirstName || !regLastName || !regEmail || !regRollNo || !regSemester) {
-      alert("Please fill in all required fields!");
-      return;
-    }
-
+  // ── Assign section to a student ───────────────────────────────────
+  const handleAssignSection = async () => {
+    if (!assignSectionValue) { alert("Please enter a section!"); return; }
     setLoading(true);
     try {
-      await advisorAPI.registerStudent({
-        firstName: regFirstName,
-        lastName: regLastName,
-        email: regEmail,
-        rollNo: regRollNo,
-        semester: parseInt(regSemester),
-        section: regSection
+      await advisorAPI.assignStudent(sectionAssignStudent._id, {
+        section: assignSectionValue,
+        semester: assignSemesterValue || undefined
       });
-
-      alert("Student registered successfully!");
-      
-      // Reset form
-      setRegFirstName("");
-      setRegLastName("");
-      setRegEmail("");
-      setRegRollNo("");
-      setRegSemester("");
-      setRegSection("");
-      setShowRegistrationForm(false);
-      
-      // Refresh students list
-      fetchStudents();
-      fetchDashboardData();
-      
-    } catch (error) {
-      console.error('Error registering student:', error);
-      alert(error.response?.data?.message || "Failed to register student");
-    } finally {
-      setLoading(false);
-    }
+      alert(`Section ${assignSectionValue} assigned to ${sectionAssignStudent.name}!`);
+      setShowAssignSection(false);
+      setSectionAssignStudent(null);
+      setAssignSectionValue("");
+      setAssignSemesterValue("");
+      await Promise.all([fetchStudents(), fetchDashboardData()]);
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Failed to assign section");
+    } finally { setLoading(false); }
   };
 
   const handleAssignTeacher = async () => {
@@ -303,7 +280,7 @@ export default function AdvisorDashboard() {
   };
 
   const quickActions = [
-    { title: "Register Student", icon: UserPlus, color: "from-blue-500 to-blue-600", action: () => setShowRegistrationForm(true) },
+    { title: "Assign Section", icon: UserPlus, color: "from-blue-500 to-blue-600", action: () => setActiveView("students") },
     { title: "Academic Records", icon: BarChart3, color: "from-purple-500 to-purple-600", action: () => setActiveView("records") },
     { title: "Review Requests", icon: FileText, color: "from-green-500 to-green-600", action: () => setActiveView("requests") },
   ];
@@ -625,17 +602,10 @@ export default function AdvisorDashboard() {
             <CardTitle className="flex items-center gap-2 text-gray-800">
               <Users className="w-6 h-6 text-blue-600" />
               All Students ({students.length})
+              <span className="text-sm font-normal text-gray-500 ml-1">
+                — students self-register, assign them a section to claim them
+              </span>
             </CardTitle>
-            <div className="flex gap-2">
-             
-              <Button
-                onClick={() => setShowRegistrationForm(true)}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Register New Student
-              </Button>
-            </div>
           </div>
         </CardHeader>
         <CardContent className="p-6">
@@ -720,6 +690,25 @@ export default function AdvisorDashboard() {
                                 No Teacher
                               </Badge>
                             )}
+                            {!student.section && (
+                              <Badge className="bg-yellow-100 text-yellow-700 font-bold border border-yellow-300">
+                                ⚠ No Section
+                              </Badge>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSectionAssignStudent(student);
+                                setAssignSectionValue(student.section || "");
+                                setAssignSemesterValue(student.semester ? String(student.semester) : "");
+                                setShowAssignSection(true);
+                              }}
+                              className="border-2 border-indigo-400 text-indigo-600 hover:bg-indigo-50 text-xs"
+                            >
+                              <UserCog className="w-3.5 h-3.5 mr-1" />
+                              {student.section ? 'Change Section' : 'Assign Section'}
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -727,7 +716,7 @@ export default function AdvisorDashboard() {
                               className="border-2 border-blue-400 text-blue-600 hover:bg-blue-50 text-xs"
                             >
                               <UserCog className="w-3.5 h-3.5 mr-1" />
-                              {student.assignedTeacher ? 'Change' : 'Assign'}
+                              {student.assignedTeacher ? 'Change Teacher' : 'Assign Teacher'}
                             </Button>
                           </div>
                         </div>
@@ -740,10 +729,8 @@ export default function AdvisorDashboard() {
           ) : (
             <div className="text-center py-12 text-gray-500">
               <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p className="font-medium">No students found</p>
-              <Button onClick={() => setShowRegistrationForm(true)} className="mt-4 bg-gradient-to-r from-blue-600 to-indigo-600">
-                Register First Student
-              </Button>
+              <p className="font-medium">No students registered yet</p>
+              <p className="text-sm mt-2 text-gray-400">Students register themselves via the Register page.<br/>They will appear here automatically.</p>
             </div>
           )}
         </CardContent>
@@ -1338,120 +1325,74 @@ export default function AdvisorDashboard() {
         </div>
       </div>
 
-      {/* Student Registration Modal */}
-      {showRegistrationForm && (
+      {/* ── Assign Section Modal ─────────────────────────────────── */}
+      {showAssignSection && sectionAssignStudent && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border-2 border-gray-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border-2 border-gray-200">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 flex items-center justify-between text-white rounded-t-3xl">
               <div className="flex items-center gap-3">
                 <div className="bg-white p-3 rounded-xl shadow-lg">
                   <UserPlus className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-xl">Register New Student</h3>
-                  <p className="text-sm text-blue-100 font-medium">Add a new student to your batch</p>
+                  <h3 className="font-bold text-xl">Assign Section</h3>
+                  <p className="text-sm text-blue-100 font-medium">{sectionAssignStudent.name}</p>
                 </div>
               </div>
               <button
-                onClick={() => setShowRegistrationForm(false)}
+                onClick={() => { setShowAssignSection(false); setSectionAssignStudent(null); }}
                 className="hover:bg-white/20 p-2 rounded-xl transition-all"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-
-            <div className="p-6 space-y-6 bg-gradient-to-br from-white to-gray-50">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">First Name *</label>
-                  <input
-                    type="text"
-                    value={regFirstName}
-                    onChange={(e) => setRegFirstName(e.target.value)}
-                    placeholder="John"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Last Name *</label>
-                  <input
-                    type="text"
-                    value={regLastName}
-                    onChange={(e) => setRegLastName(e.target.value)}
-                    placeholder="Doe"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                  />
-                </div>
+            <div className="p-6 space-y-5 bg-gradient-to-br from-white to-gray-50">
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                <p className="text-sm text-blue-700 font-medium">📧 {sectionAssignStudent.email}</p>
+                <p className="text-sm text-blue-700 font-medium mt-1">🎓 Roll: {sectionAssignStudent.rollNo || 'N/A'}</p>
               </div>
-
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Email *</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Section *</label>
                 <input
-                  type="email"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  placeholder="john.doe@example.com"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                  type="text"
+                  value={assignSectionValue}
+                  onChange={e => setAssignSectionValue(e.target.value.toUpperCase())}
+                  placeholder="e.g., A, B, C"
+                  maxLength={5}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold tracking-widest text-lg"
                 />
               </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Roll No *</label>
-                  <input
-                    type="text"
-                    value={regRollNo}
-                    onChange={(e) => setRegRollNo(e.target.value)}
-                    placeholder="2022-CS-001"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Semester *</label>
-                  <input
-                    type="number"
-                    value={regSemester}
-                    onChange={(e) => setRegSemester(e.target.value)}
-                    placeholder="3"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Section</label>
-                  <input
-                    type="text"
-                    value={regSection}
-                    onChange={(e) => setRegSection(e.target.value)}
-                    placeholder="A"
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Semester</label>
+                <select
+                  value={assignSemesterValue}
+                  onChange={e => setAssignSemesterValue(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                >
+                  <option value="">Keep current ({sectionAssignStudent.semester || 'not set'})</option>
+                  {[1,2,3,4,5,6,7,8].map(s => (
+                    <option key={s} value={s}>Semester {s}</option>
+                  ))}
+                </select>
               </div>
-
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-4 pt-2">
                 <Button
                   variant="outline"
                   className="flex-1 py-6 font-bold rounded-xl border-2 hover:bg-gray-100"
-                  onClick={() => setShowRegistrationForm(false)}
+                  onClick={() => { setShowAssignSection(false); setSectionAssignStudent(null); }}
                   disabled={loading}
                 >
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleRegisterStudent}
-                  disabled={loading}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 py-6 font-bold rounded-xl shadow-lg"
+                  onClick={handleAssignSection}
+                  disabled={loading || !assignSectionValue}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 py-6 font-bold rounded-xl shadow-lg disabled:opacity-50"
                 >
                   {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Registering...
-                    </>
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Assigning...</>
                   ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Register Student
-                    </>
+                    <><Save className="w-4 h-4 mr-2" />Assign Section {assignSectionValue}</>
                   )}
                 </Button>
               </div>

@@ -1,0 +1,21 @@
+
+╔══════════════════════════════════════════════════════════════╗
+║            Smart Advisor System - Backend Server             ║
+╚══════════════════════════════════════════════════════════════╝
+
+🚀 Server running on port 5000
+📡 Socket.IO server active
+🔗 Frontend URL: http://localhost:8080
+
+📋 Active Routes:
+   ✅ /api/auth         - Authentication
+   ✅ /api/students     - Student Dashboard
+   ✅ /api/teachers     - Teacher Dashboard
+   ✅ /api/advisors     - Advisor Dashboard
+   ✅ /api/hop          - HOP Dashboard
+   ✅ /health           - Health Check
+
+📁 File uploads enabled at /uploads
+  
+🍃 MongoDB Connected: localhost
+User asad@gmail.com connected via socket

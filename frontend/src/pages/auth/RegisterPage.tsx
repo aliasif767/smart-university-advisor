@@ -29,6 +29,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { toast } from "sonner";
+import hitecImage1 from "@/university-images/HITEC-1.jpg";
+import hitecImage2 from "@/university-images/Hitec-2.jpeg";
+import hitecImage3 from "@/university-images/Hitec-3.jpeg"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -40,6 +43,7 @@ export default function RegisterPage() {
     role: "",
     studentId: "",
     batch: "",
+    semester: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -55,11 +59,9 @@ export default function RegisterPage() {
 
   // Array of images for slideshow
   const heroImages = [
-    "https://www.hitecuni.edu.pk/www/img/slider/1.jpg",
-    "https://www.hitecuni.edu.pk/www/img/slider/3.jpg",
-    "https://i.dawn.com/primary/2020/03/5e6018765baec.jpg",
-    "https://w0.peakpx.com/wallpaper/440/401/HD-wallpaper-hitec-university-of-science-and-technology-taxila-education-university-buildings-landscape.jpg",
-    "https://i.dawn.com/primary/2020/02/5e3893cee484e.jpg"
+   hitecImage1,
+    hitecImage2,
+    hitecImage3
   ];
 
   // Auto-rotate images every 3 seconds
@@ -134,7 +136,11 @@ export default function RegisterPage() {
     }
     
     if (formData.role === "student" && !formData.studentId) {
-      toast.error("Student ID is required");
+      toast.error("Roll No / Student ID is required");
+      return;
+    }
+    if (formData.role === "student" && !formData.semester) {
+      toast.error("Semester is required");
       return;
     }
 
@@ -327,9 +333,10 @@ export default function RegisterPage() {
                 )}
 
                 {formData.role === "student" && (
+                  <>
                   <div className="space-y-2">
                     <Label htmlFor="studentId" className="text-sm font-semibold text-gray-700">
-                      Student ID
+                      Roll No / Student ID
                     </Label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -347,6 +354,26 @@ export default function RegisterPage() {
                       />
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="semester" className="text-sm font-semibold text-gray-700">
+                      Semester
+                    </Label>
+                    <div className="relative">
+                      <select
+                        id="semester"
+                        value={formData.semester}
+                        onChange={(e) => handleInputChange("semester", e.target.value)}
+                        required
+                        className="w-full px-4 py-3 border-2 border-gray-200 focus:border-indigo-500 transition-colors rounded-lg h-11 bg-white text-sm font-medium"
+                      >
+                        <option value="">Select semester</option>
+                        {[1,2,3,4,5,6,7,8].map(s => (
+                          <option key={s} value={s}>Semester {s}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  </>
                 )}
 
                 <div className="space-y-2">

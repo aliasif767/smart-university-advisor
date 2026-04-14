@@ -753,7 +753,8 @@ router.get('/academic/attendance', authenticateToken, async (req, res) => {
       return res.json({ success: true, attendance: [] });
     }
 
-    const studentObjectId = req.user._id;
+    // Cast to ObjectId to ensure proper matching regardless of how studentId was stored
+    const studentObjectId = new mongoose.Types.ObjectId(req.user._id.toString());
     const { course } = req.query;
     const filter = { studentId: studentObjectId };
     if (course) filter.courseName = { $regex: course, $options: 'i' };
@@ -786,7 +787,8 @@ router.get('/academic/attendance/summary', authenticateToken, async (req, res) =
       return res.json({ success: true, summary: { overallPercentage: 0, totalPresent: 0, totalAbsent: 0, totalLate: 0, byCourse: [] } });
     }
 
-    const records = await Attendance.find({ studentId: req.user._id }).lean();
+    const studentObjectId = new mongoose.Types.ObjectId(req.user._id.toString());
+    const records = await Attendance.find({ studentId: studentObjectId }).lean();
 
     const total   = records.length;
     const present = records.filter(r => r.status === 'present').length;
@@ -833,7 +835,8 @@ router.get('/academic/marks', authenticateToken, async (req, res) => {
     }
 
     const { course, examType } = req.query;
-    const filter = { studentId: req.user._id };
+    const studentObjectId = new mongoose.Types.ObjectId(req.user._id.toString());
+    const filter = { studentId: studentObjectId };
     if (course)    filter.courseName = { $regex: course, $options: 'i' };
     if (examType)  filter.examType   = examType;
 
@@ -867,7 +870,8 @@ router.get('/academic/marks/summary', authenticateToken, async (req, res) => {
       return res.json({ success: true, summary: { overallPercentage: 0, totalExams: 0, byCourse: [] } });
     }
 
-    const records = await Marks.find({ studentId: req.user._id }).lean();
+    const studentObjectId = new mongoose.Types.ObjectId(req.user._id.toString());
+    const records = await Marks.find({ studentId: studentObjectId }).lean();
 
     const totalExams = records.length;
     const overallPct = totalExams > 0

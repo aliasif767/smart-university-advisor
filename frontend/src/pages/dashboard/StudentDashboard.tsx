@@ -593,18 +593,48 @@ export default function StudentDashboard() {
     <div className="space-y-6">
       <Card className="border-2 border-gray-200 shadow-xl rounded-2xl">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
-          <div className="flex items-center gap-3">
-            <div className="bg-white p-3 rounded-xl shadow-lg">
-              <UserCheck className="h-6 w-6 text-blue-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-white p-3 rounded-xl shadow-lg">
+                <UserCheck className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-xl">My Attendance Records</h3>
+                <p className="text-sm text-blue-100 font-medium">View your attendance across all courses</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-xl">My Attendance Records</h3>
-              <p className="text-sm text-blue-100 font-medium">View your attendance across all courses</p>
-            </div>
+            <button
+              onClick={fetchAttendanceData}
+              disabled={loading}
+              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 border border-white/40 text-white font-bold px-4 py-2 rounded-xl transition-all text-sm"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
 
-        
+        {/* Summary Cards */}
+        {attendanceSummary && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 border-b-2 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="bg-white border-2 border-blue-200 rounded-xl p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-blue-600">{attendanceSummary.overallPercentage ?? 0}%</p>
+              <p className="text-xs font-bold text-gray-600 mt-1">Overall</p>
+            </div>
+            <div className="bg-white border-2 border-green-200 rounded-xl p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-green-600">{attendanceSummary.totalPresent ?? 0}</p>
+              <p className="text-xs font-bold text-gray-600 mt-1">Present</p>
+            </div>
+            <div className="bg-white border-2 border-red-200 rounded-xl p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-red-600">{attendanceSummary.totalAbsent ?? 0}</p>
+              <p className="text-xs font-bold text-gray-600 mt-1">Absent</p>
+            </div>
+            <div className="bg-white border-2 border-yellow-200 rounded-xl p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-yellow-600">{attendanceSummary.totalClasses ?? 0}</p>
+              <p className="text-xs font-bold text-gray-600 mt-1">Total Classes</p>
+            </div>
+          </div>
+        )}
 
         <CardContent className="p-6">
           {loading ? (
@@ -620,7 +650,7 @@ export default function StudentDashboard() {
                       <div className="flex items-center gap-3 mb-2">
                         <BookOpen className="w-5 h-5 text-blue-600" />
                         <span className="font-bold text-gray-800">{record.courseName}</span>
-                        <Badge className={`font-bold ${record.status === 'present' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        <Badge className={`font-bold ${record.status === 'present' ? 'bg-green-100 text-green-700' : record.status === 'late' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                           {record.status}
                         </Badge>
                       </div>
@@ -629,10 +659,10 @@ export default function StudentDashboard() {
                           <Calendar className="w-4 h-4" />
                           {new Date(record.date).toLocaleDateString()}
                         </span>
-                        
+                        {record.courseCode && <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">{record.courseCode}</span>}
+                        {record.remarks && <span className="text-xs text-gray-500 italic">{record.remarks}</span>}
                       </div>
                     </div>
-                    
                   </div>
                 </div>
               ))}
@@ -641,6 +671,7 @@ export default function StudentDashboard() {
             <div className="text-center py-12 text-gray-500">
               <UserCheck className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <p className="font-medium">No attendance records found</p>
+              <p className="text-sm mt-1 text-gray-400">Your teacher hasn't marked attendance yet, or you need to be assigned a teacher.</p>
             </div>
           )}
         </CardContent>
@@ -653,18 +684,44 @@ export default function StudentDashboard() {
     <div className="space-y-6">
       <Card className="border-2 border-gray-200 shadow-xl rounded-2xl">
         <div className="bg-gradient-to-r from-green-600 to-emerald-700 p-6 text-white">
-          <div className="flex items-center gap-3">
-            <div className="bg-white p-3 rounded-xl shadow-lg">
-              <BarChart3 className="h-6 w-6 text-green-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-white p-3 rounded-xl shadow-lg">
+                <BarChart3 className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-xl">My Exam Marks</h3>
+                <p className="text-sm text-green-100 font-medium">View your performance across all assessments</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-xl">My Exam Marks</h3>
-              <p className="text-sm text-green-100 font-medium">View your performance across all assessments</p>
-            </div>
+            <button
+              onClick={fetchMarksData}
+              disabled={loading}
+              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 border border-white/40 text-white font-bold px-4 py-2 rounded-xl transition-all text-sm"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
 
-        
+        {/* Summary Cards */}
+        {marksSummary && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-6 border-b-2 bg-gradient-to-r from-green-50 to-emerald-50">
+            <div className="bg-white border-2 border-green-200 rounded-xl p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-green-600">{marksSummary.overallPercentage ?? 0}%</p>
+              <p className="text-xs font-bold text-gray-600 mt-1">Overall Average</p>
+            </div>
+            <div className="bg-white border-2 border-blue-200 rounded-xl p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-blue-600">{marksSummary.totalExams ?? 0}</p>
+              <p className="text-xs font-bold text-gray-600 mt-1">Total Exams</p>
+            </div>
+            <div className="bg-white border-2 border-purple-200 rounded-xl p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-purple-600">{marksSummary.byCourse?.length ?? 0}</p>
+              <p className="text-xs font-bold text-gray-600 mt-1">Courses</p>
+            </div>
+          </div>
+        )}
 
         <CardContent className="p-6">
           {loading ? (
@@ -683,13 +740,14 @@ export default function StudentDashboard() {
                         <Badge className="bg-purple-100 text-purple-700 font-bold">
                           {record.examType}
                         </Badge>
+                        {record.courseCode && <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">{record.courseCode}</span>}
                       </div>
                       <div className="flex items-center gap-4 ml-8">
                         <span className="text-sm text-gray-600 font-medium flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
                           {new Date(record.examDate).toLocaleDateString()}
                         </span>
-                        
+                        {record.remarks && <span className="text-xs text-gray-500 italic">{record.remarks}</span>}
                       </div>
                     </div>
                     <div className="text-right">
@@ -705,6 +763,7 @@ export default function StudentDashboard() {
             <div className="text-center py-12 text-gray-500">
               <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <p className="font-medium">No exam marks found</p>
+              <p className="text-sm mt-1 text-gray-400">Your teacher hasn't uploaded marks yet, or you need to be assigned a teacher.</p>
             </div>
           )}
         </CardContent>
@@ -1759,7 +1818,7 @@ export default function StudentDashboard() {
         <AgentChatbot
           user={user}
           onClose={() => setShowChatbot(false)}
-          token={localStorage.getItem("token")}
+          token={sessionStorage.getItem("token")}
           onAppointmentBooked={fetchAppointments}
           onQuerySubmitted={fetchDashboardData}
         />

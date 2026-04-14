@@ -14,7 +14,7 @@ const api = axios.create({
 // Add token to requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -31,8 +31,8 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Token expired or invalid
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -44,8 +44,8 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
   }
 };
 
@@ -119,7 +119,7 @@ export const teacherAPI = {
 
 // ==================== ADVISOR APIs ====================
 export const advisorAPI = {
-  registerStudent: (data) => api.post('/advisors/students/register', data),
+  assignStudent: (studentId, data) => api.patch(`/advisors/students/${studentId}/assign-section`, data),
   assignTeacher: (studentId, data) => api.patch(`/advisors/students/${studentId}/assign-teacher`, data),
   getStudents: (params = {}) => api.get('/advisors/students', { params }),
   getStudentDetails: (studentId) => api.get(`/advisors/students/${studentId}`),

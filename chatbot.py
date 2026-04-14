@@ -281,6 +281,15 @@ class WebsiteRAGChatbot:
         print(f"Vector database ready ({len(chunks)} chunks)")
         return True
 
+    def load_existing_db(self):
+        print("\nLoading existing vector database from ./chroma_db...")
+        self.vectorstore = Chroma(
+            persist_directory="./chroma_db",
+            embedding_function=self.embeddings
+        )
+        print("Existing vector database loaded successfully.")
+        return True
+
     # ── RAG retrieval ─────────────────────────────────────────────────────────
     def retrieve_context(self, query, top_k=3):
         if not self.vectorstore:

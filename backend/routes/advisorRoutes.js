@@ -181,26 +181,18 @@ router.post('/students/register', async (req, res) => {
   }
 });
 
-// ==================== GET ALL STUDENTS ====================
+// ==================== GET ALL STUDENTS (all students in system) ====================
 // GET /api/advisors/students
 router.get('/students', async (req, res) => {
   try {
     const User = await getUserModel();
     const { search, semester, section } = req.query;
-    const advisorIdStr = req.user._id.toString();
 
-    // Fetch ALL students, then filter in JS — this is the only reliable approach
-    // when we can't be sure if the DB documents have advisorId stored correctly
-    let allStudents = await User.find({ role: 'student' })
+    // Fetch ALL students (advisor sees everyone so they can assign sections/teachers)
+    let students = await User.find({ role: 'student' })
       .select('_id firstName lastName email rollNo studentId semester section batch assignedTeacher advisorId')
       .sort({ createdAt: -1 })
       .lean();
-
-    // Filter: keep students whose advisorId matches this advisor
-    let students = allStudents.filter(s => {
-      if (!s.advisorId) return false;
-      return s.advisorId.toString() === advisorIdStr;
-    });
 
     // Apply optional filters
     if (semester) students = students.filter(s => s.semester === parseInt(semester));
@@ -222,6 +214,7 @@ router.get('/students', async (req, res) => {
       teachers.forEach(t => { teacherMap[String(t._id)] = `${t.firstName} ${t.lastName}`; });
     }
 
+    const advisorIdStr = req.user._id.toString();
     const formatted = students.map(s => ({
       _id:             s._id,
       name:            `${s.firstName} ${s.lastName}`,
@@ -231,7 +224,8 @@ router.get('/students', async (req, res) => {
       semester:        s.semester,
       section:         s.section,
       batch:           s.batch,
-      assignedTeacher: s.assignedTeacher ? teacherMap[String(s.assignedTeacher)] || 'Assigned' : null
+      assignedTeacher: s.assignedTeacher ? teacherMap[String(s.assignedTeacher)] || 'Assigned' : null,
+      isMyStudent:     s.advisorId ? s.advisorId.toString() === advisorIdStr : false
     }));
 
     res.json({ success: true, students: formatted, total: formatted.length });
@@ -306,19 +300,17 @@ router.patch('/sections/assign-teacher', async (req, res) => {
 router.get('/sections', async (req, res) => {
   try {
     const User = await getUserModel();
-    const advisorIdStr = req.user._id.toString();
 
+    // Show sections from ALL students (advisor sees all)
     const allStudents = await User.find({ role: 'student' })
-      .select('advisorId section assignedTeacher')
+      .select('section assignedTeacher advisorId')
       .lean();
 
-    const myStudents = allStudents.filter(s => s.advisorId && s.advisorId.toString() === advisorIdStr);
-
-    // Build section summary: { section, studentCount, teacherId, teacherName }
+    // Build section summary
     const sectionMap = {};
     const teacherIds = new Set();
 
-    myStudents.forEach(s => {
+    allStudents.forEach(s => {
       const sec = s.section || 'Unassigned';
       if (!sectionMap[sec]) sectionMap[sec] = { section: sec, studentCount: 0, teacherIds: new Set() };
       sectionMap[sec].studentCount++;
@@ -347,6 +339,44 @@ router.get('/sections', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch sections', error: error.message });
   }
 });
+
+// ==================== ASSIGN SECTION TO STUDENT ====================
+// PATCH /api/advisors/students/:studentId/assign-section
+router.patch('/students/:studentId/assign-section', async (req, res) => {
+  try {
+    const User = await getUserModel();
+    const { section, semester } = req.body;
+
+    if (!section) {
+      return res.status(400).json({ success: false, message: 'Please provide section' });
+    }
+
+    const updateData = {
+      section: section.trim(),
+      advisorId: req.user._id  // claim this student as belonging to this advisor
+    };
+    if (semester) updateData.semester = parseInt(semester);
+
+    const student = await User.findOneAndUpdate(
+      { _id: req.params.studentId, role: 'student' },
+      { $set: updateData },
+      { new: true }
+    ).select('-password');
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    res.json({
+      success: true,
+      message: `Section ${section} assigned to ${student.firstName} ${student.lastName}`,
+      student
+    });
+  } catch (error) {
+    console.error('Error assigning section:', error);
+    res.status(500).json({ success: false, message: 'Failed to assign section', error: error.message });
+  }
+});
 router.patch('/students/:studentId/assign-teacher', async (req, res) => {
   try {
     const User = await getUserModel();
@@ -362,15 +392,15 @@ router.patch('/students/:studentId/assign-teacher', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
     }
 
-    // Verify student belongs to this advisor
+    // Allow any advisor to assign a teacher (ownership is set via assign-section)
     const student = await User.findOneAndUpdate(
-      { _id: req.params.studentId, role: 'student', advisorId: req.user._id },
+      { _id: req.params.studentId, role: 'student' },
       { $set: { assignedTeacher: teacherId } },
       { new: true }
     ).select('-password');
 
     if (!student) {
-      return res.status(404).json({ success: false, message: 'Student not found or not under your supervision' });
+      return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
     res.json({

@@ -31,7 +31,7 @@ chatbot = WebsiteRAGChatbot(
     groq_api_key=os.getenv("GROQ_API_KEY"),
     document_path="website_info.txt"
 )
-chatbot.load_and_process_document()
+chatbot.load_existing_db()
 
 
 # ── Basic streaming endpoint (original, unchanged) ────────────────────────────

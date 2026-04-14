@@ -6,9 +6,9 @@ import {
   Users, Megaphone, CalendarDays, Plus, CheckSquare,
   Loader2, Edit2, Trash2, Send
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge }   from "@/components/ui/badge";
-import { Button }  from "@/components/ui/button";
+//import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+//import { Badge }   from "@/components/ui/badge";
+//import { Button }  from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 
@@ -16,7 +16,7 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:5000/api"
 });
 api.interceptors.request.use((cfg) => {
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token");
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
   return cfg;
 });

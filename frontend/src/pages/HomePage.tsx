@@ -22,16 +22,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import ScrollToTop from "@/components/ScrollToTop";
-
+import hitecImage1 from "@/university-images/HITEC-1.jpg";
+import hitecImage2 from "@/university-images/Hitec-2.jpeg";
+import hitecImage3 from "@/university-images/Hitec-3.jpeg"
 export default function HomePage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Array of images for hero slideshow
   const heroImages = [
-    "https://www.hitecuni.edu.pk/www/img/slider/1.jpg",
-    "https://www.hitecuni.edu.pk/www/img/slider/3.jpg",
-    "https://w0.peakpx.com/wallpaper/440/401/HD-wallpaper-hitec-university-of-science-and-technology-taxila-education-university-buildings-landscape.jpg",
-    "https://i.dawn.com/primary/2020/02/5e3893cee484e.jpg"
+    hitecImage1,
+    hitecImage2,
+    hitecImage3
   ];
 
   // Auto-rotate images every 3 seconds
@@ -244,12 +245,7 @@ export default function HomePage() {
                   <span className="text-sm font-semibold text-gray-900">100% Secure</span>
                 </div>
               </div>
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-sm rounded-xl p-3 shadow-2xl border-2 border-purple-100">
-                <div className="flex items-center space-x-2">
-                  <Bell className="h-4 w-4 text-purple-600" />
-                  <span className="text-xs font-semibold text-gray-900">Real-Time Updates</span>
-                </div>
-              </div>
+              
             </div>
           </div>
         </div>

@@ -17,6 +17,7 @@ export const register = asyncHandler(async (req, res) => {
     role, 
     studentId, 
     batch,
+    semester,
   } = req.body; 
 
   // Check if user exists
@@ -50,9 +51,13 @@ export const register = asyncHandler(async (req, res) => {
   
   if (studentId) {
     userCreationData.studentId = studentId;
+    userCreationData.rollNo = studentId; // Keep rollNo in sync with studentId
   }
   if (batch) {
     userCreationData.batch = batch;
+  }
+  if (semester) {
+    userCreationData.semester = parseInt(semester);
   }
   
   // Removed logic for department, phoneNumber, dateOfBirth
