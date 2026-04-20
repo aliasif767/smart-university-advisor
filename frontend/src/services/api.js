@@ -98,7 +98,8 @@ export const studentAcademicAPI = {
   getMyMarks: (params = {}) => api.get('/students/academic/marks', { params }),
   getAttendanceSummary: () => api.get('/students/academic/attendance/summary'),
   getMarksSummary: () => api.get('/students/academic/marks/summary'),
-  getAnnouncements: () => api.get('/students/announcements/public')
+  getAnnouncements: () => api.get('/students/announcements/public'),
+  getMyCourses: () => api.get('/students/my-courses')
 };
 
 // ==================== TEACHER APIs ====================
@@ -138,7 +139,11 @@ export const advisorAPI = {
   cancelAppointment:  (id, data) => api.patch(`/advisors/appointments/${id}/cancel`,  data),
   getTeacherRecords: () => api.get('/advisors/teacher-records'),
   getSections: () => api.get('/advisors/sections'),
-  assignTeacherToSection: (data) => api.patch('/advisors/sections/assign-teacher', data)
+  assignTeacherToSection: (data) => api.patch('/advisors/sections/assign-teacher', data),
+  // Course assignment
+  assignCourses: (data) => api.post('/advisors/courses/assign', data),
+  getStudentCourses: (studentId) => api.get(`/advisors/students/${studentId}/courses`),
+  removeCourse: (id) => api.delete(`/advisors/courses/${id}`)
 };
 // ==================== HOP APIs ====================
 export const hopAPI = {

@@ -52,6 +52,23 @@ const marksSchema = new mongoose.Schema({
 
 const Marks = mongoose.models.Marks || mongoose.model('Marks', marksSchema);
 
+// ── CourseAssignment model ───────────────────────────────────────────
+const courseAssignmentSchema = new mongoose.Schema({
+  advisorId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  studentId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  courseName:  { type: String, required: true, trim: true },
+  courseCode:  { type: String, default: '', trim: true },
+  creditHours: { type: Number, default: 3 },
+  semester:    { type: String, default: '', trim: true },
+  status:      { type: String, enum: ['active', 'completed', 'dropped'], default: 'active' }
+}, { timestamps: true });
+
+courseAssignmentSchema.index({ studentId: 1 });
+courseAssignmentSchema.index({ advisorId: 1 });
+
+const CourseAssignment = mongoose.models.CourseAssignment
+  || mongoose.model('CourseAssignment', courseAssignmentSchema);
+
 // ============================================================
 // MIDDLEWARE: Ensure only advisors can access these routes
 // ============================================================
@@ -965,6 +982,89 @@ router.get('/teacher-records', async (req, res) => {
     res.json({ success: true, sections, total: notifications.length });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch teacher records', error: error.message });
+  }
+});
+
+// ==================== COURSE ASSIGNMENT ROUTES ====================
+
+// POST /api/advisors/courses/assign — assign one or more courses to a student
+router.post('/courses/assign', async (req, res) => {
+  try {
+    const User = await getUserModel();
+    const { studentId, courses } = req.body;
+    // courses: [{ courseName, courseCode?, creditHours?, semester? }]
+
+    if (!studentId || !courses || !Array.isArray(courses) || courses.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please provide studentId and at least one course' });
+    }
+
+    // Verify student exists
+    const student = await User.findOne({ _id: studentId, role: 'student' });
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    const created = [];
+    for (const c of courses) {
+      if (!c.courseName || !c.courseName.trim()) continue;
+
+      // Prevent duplicate assignment
+      const exists = await CourseAssignment.findOne({
+        studentId,
+        courseName: c.courseName.trim(),
+        status: 'active'
+      });
+      if (exists) continue;
+
+      const assignment = new CourseAssignment({
+        advisorId: req.user._id,
+        studentId,
+        courseName: c.courseName.trim(),
+        courseCode: (c.courseCode || '').trim(),
+        creditHours: c.creditHours || 3,
+        semester: (c.semester || '').trim(),
+        status: 'active'
+      });
+      await assignment.save();
+      created.push(assignment);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `${created.length} course(s) assigned to ${student.firstName} ${student.lastName}`,
+      courses: created
+    });
+  } catch (error) {
+    console.error('Error assigning courses:', error);
+    res.status(500).json({ success: false, message: 'Failed to assign courses', error: error.message });
+  }
+});
+
+// GET /api/advisors/students/:studentId/courses — get courses for a student
+router.get('/students/:studentId/courses', async (req, res) => {
+  try {
+    const courses = await CourseAssignment.find({ studentId: req.params.studentId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ success: true, courses });
+  } catch (error) {
+    console.error('Error fetching student courses:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch courses', error: error.message });
+  }
+});
+
+// DELETE /api/advisors/courses/:id — remove a course assignment
+router.delete('/courses/:id', async (req, res) => {
+  try {
+    const course = await CourseAssignment.findByIdAndDelete(req.params.id);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course assignment not found' });
+    }
+    res.json({ success: true, message: 'Course removed successfully' });
+  } catch (error) {
+    console.error('Error removing course:', error);
+    res.status(500).json({ success: false, message: 'Failed to remove course', error: error.message });
   }
 });
 

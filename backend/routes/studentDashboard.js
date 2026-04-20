@@ -558,6 +558,9 @@ router.get('/statistics/dashboard', authenticateToken, async (req, res) => {
   try {
     const studentId = req.user.studentId;
 
+    const mongoose_ = (await import('mongoose')).default;
+    const CourseAssignment = mongoose_.models.CourseAssignment;
+
     const [academic, exam, leave, other, appointments] = await Promise.all([
       AcademicQuery.find({ studentId }),
       ExamQuery.find({ studentId }),
@@ -565,6 +568,13 @@ router.get('/statistics/dashboard', authenticateToken, async (req, res) => {
       OtherQuery.find({ studentId }),
       Appointment.find({ studentId })
     ]);
+
+    // Count active courses assigned to this student
+    let activeCourses = 0;
+    if (CourseAssignment) {
+      const studentObjectId = new mongoose_.Types.ObjectId(req.user._id.toString());
+      activeCourses = await CourseAssignment.countDocuments({ studentId: studentObjectId, status: 'active' });
+    }
 
     const allQueries = [...academic, ...exam, ...leave, ...other];
 
@@ -592,7 +602,10 @@ router.get('/statistics/dashboard', authenticateToken, async (req, res) => {
         category: q.category,
         status: q.finalStatus,
         date: q.createdAt
-      }))
+      })),
+
+      // Active courses assigned by advisor
+      activeCourses
     };
 
     res.json({ 
@@ -924,6 +937,29 @@ router.get('/announcements/public', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Student announcements error:', error);
     res.status(500).json({ success: false, message: 'Failed', error: error.message });
+  }
+});
+
+// ============================================================
+// STUDENT COURSES — Courses assigned by advisor
+// ============================================================
+router.get('/my-courses', authenticateToken, async (req, res) => {
+  try {
+    const mongoose_ = (await import('mongoose')).default;
+    const CourseAssignment = mongoose_.models.CourseAssignment;
+    if (!CourseAssignment) {
+      return res.json({ success: true, courses: [] });
+    }
+
+    const studentObjectId = new mongoose_.Types.ObjectId(req.user._id.toString());
+    const courses = await CourseAssignment.find({ studentId: studentObjectId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ success: true, courses });
+  } catch (error) {
+    console.error('Student courses fetch error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch courses', error: error.message });
   }
 });
 

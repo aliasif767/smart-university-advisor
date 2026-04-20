@@ -47,7 +47,7 @@ export default function StudentDashboard() {
   const [showChatbot, setShowChatbot] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   // Form States
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedQueryType, setSelectedQueryType] = useState("");
@@ -62,7 +62,7 @@ export default function StudentDashboard() {
   const [issueType, setIssueType] = useState("");
   const [attendancePercentage, setAttendancePercentage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  
+
   const fileInputRef = useRef(null);
 
   // Data States
@@ -75,6 +75,7 @@ export default function StudentDashboard() {
   const [marksSummary, setMarksSummary] = useState(null);
   const [hopAnnouncements, setHopAnnouncements] = useState([]);
   const [queryFilter, setQueryFilter] = useState("all");
+  const [myCourses, setMyCourses] = useState<any[]>([]);
 
   // chatMessages and chatInput removed — AgentChatbot manages its own state
 
@@ -125,17 +126,19 @@ export default function StudentDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [queriesRes, statsRes, announcementsRes, appointmentsRes] = await Promise.all([
+      const [queriesRes, statsRes, announcementsRes, appointmentsRes, coursesRes] = await Promise.all([
         queryAPI.getMyQueries(),
         statsAPI.getDashboard(),
         studentAcademicAPI.getAnnouncements().catch(() => ({ data: { announcements: [] } })),
-        appointmentAPI.getMyAppointments().catch(() => ({ data: { appointments: [] } }))
+        appointmentAPI.getMyAppointments().catch(() => ({ data: { appointments: [] } })),
+        studentAcademicAPI.getMyCourses().catch(() => ({ data: { courses: [] } }))
       ]);
-      
+
       setQueries(queriesRes.data.queries || []);
       setStats(statsRes.data.stats || {});
       setHopAnnouncements(announcementsRes.data.announcements || []);
       setAppointments(appointmentsRes.data.appointments || []);
+      setMyCourses(coursesRes.data.courses || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
@@ -148,7 +151,7 @@ export default function StudentDashboard() {
         studentAcademicAPI.getMyAttendance(),
         studentAcademicAPI.getAttendanceSummary()
       ]);
-      
+
       setAttendanceRecords(recordsRes.data.attendance || []);
       setAttendanceSummary(summaryRes.data.summary || {});
     } catch (error) {
@@ -165,7 +168,7 @@ export default function StudentDashboard() {
         studentAcademicAPI.getMyMarks(),
         studentAcademicAPI.getMarksSummary()
       ]);
-      
+
       setMarksRecords(recordsRes.data.marks || []);
       setMarksSummary(summaryRes.data.summary || {});
     } catch (error) {
@@ -178,8 +181,8 @@ export default function StudentDashboard() {
   const queryForms = [
     { id: "add-drop", title: "Course Add/Drop", category: "academic" },
     { id: "freeze-course", title: "Course Freeze", category: "academic" },
-    { id: "mid-retake", title: "Mid Retake", category: "exam" },
-    { id: "final-retake", title: "Final Retake", category: "exam" },
+    { id: "mid-retake", title: "Mid I grade", category: "exam" },
+    { id: "final-retake", title: "Final I grade", category: "exam" },
     { id: "update-marks", title: "Update marks", category: "exam" },
     { id: "sick-leave", title: "Sick Leave", category: "leave" },
     { id: "marriage-leave", title: "Marriage Leave", category: "leave" },
@@ -189,35 +192,36 @@ export default function StudentDashboard() {
   ];
 
   const statsDisplay = [
-    { 
-      label: "Pending Requests", 
-      value: stats?.pendingQueries || "0", 
-      icon: Clock, 
-      color: "text-orange-600", 
-      bg: "bg-gradient-to-br from-orange-50 to-orange-100", 
+    {
+      label: "Pending Requests",
+      value: stats?.pendingQueries || "0",
+      icon: Clock,
+      color: "text-orange-600",
+      bg: "bg-gradient-to-br from-orange-50 to-orange-100",
       border: "border-orange-200",
       trend: `${stats?.totalQueries || 0} total`,
       trendIcon: TrendingUp
     },
-    { 
-      label: "Approved", 
-      value: stats?.approvedQueries || "0", 
-      icon: CheckCircle, 
-      color: "text-green-600", 
-      bg: "bg-gradient-to-br from-green-50 to-green-100", 
+    {
+      label: "Approved",
+      value: stats?.approvedQueries || "0",
+      icon: CheckCircle,
+      color: "text-green-600",
+      bg: "bg-gradient-to-br from-green-50 to-green-100",
       border: "border-green-200",
       trend: "This semester",
       trendIcon: Target
     },
-    { 
-      label: "Active Courses", 
-      value: "6", 
-      icon: BookOpen, 
-      color: "text-blue-600", 
-      bg: "bg-gradient-to-br from-blue-50 to-blue-100", 
+    {
+      label: "Active Courses",
+      value: myCourses.filter((c: any) => c.status === 'active').length.toString(),
+      icon: BookOpen,
+      color: "text-blue-600",
+      bg: "bg-gradient-to-br from-blue-50 to-blue-100",
       border: "border-blue-200",
-      trend: "Spring 2024",
-      trendIcon: GraduationCap
+      trend: "Assigned by Advisor",
+      trendIcon: GraduationCap,
+      action: () => setActiveView("myCourses")
     },
   ];
 
@@ -233,9 +237,9 @@ export default function StudentDashboard() {
 
   // announcements are fetched from HOP (hopAnnouncements state)
   const announcementTypeStyle = (type) => {
-    if (type === 'exam')    return { color: "bg-gradient-to-r from-red-50 to-red-100",    textColor: "text-red-900",    timeColor: "text-red-600",    iconBg: "bg-red-500",    icon: FileText };
-    if (type === 'urgent')  return { color: "bg-gradient-to-r from-orange-50 to-orange-100", textColor: "text-orange-900", timeColor: "text-orange-600", iconBg: "bg-orange-500", icon: AlertCircle };
-    if (type === 'event')   return { color: "bg-gradient-to-r from-purple-50 to-purple-100", textColor: "text-purple-900", timeColor: "text-purple-600", iconBg: "bg-purple-500", icon: Calendar };
+    if (type === 'exam') return { color: "bg-gradient-to-r from-red-50 to-red-100", textColor: "text-red-900", timeColor: "text-red-600", iconBg: "bg-red-500", icon: FileText };
+    if (type === 'urgent') return { color: "bg-gradient-to-r from-orange-50 to-orange-100", textColor: "text-orange-900", timeColor: "text-orange-600", iconBg: "bg-orange-500", icon: AlertCircle };
+    if (type === 'event') return { color: "bg-gradient-to-r from-purple-50 to-purple-100", textColor: "text-purple-900", timeColor: "text-purple-600", iconBg: "bg-purple-500", icon: Calendar };
     return { color: "bg-gradient-to-r from-green-50 to-green-100", textColor: "text-green-900", timeColor: "text-green-600", iconBg: "bg-green-500", icon: Bell };
   };
 
@@ -312,19 +316,19 @@ export default function StudentDashboard() {
     setLoading(true);
     try {
       const formData = new FormData();
-      
+
       // Common fields
       formData.append('queryType', selectedQueryType);
       formData.append('description', description);
       formData.append('priority', 'medium');
-      
+
       // Add file if exists
       if (selectedFile) {
         formData.append('documents', selectedFile);
       }
 
       let response;
-      
+
       if (selectedCategory === 'academic') {
         if (!courseName) {
           alert("Please enter course name");
@@ -335,7 +339,7 @@ export default function StudentDashboard() {
         formData.append('courseCode', courseCode);
         formData.append('semester', 'Fall 2024');
         response = await queryAPI.submitAcademic(formData);
-        
+
       } else if (selectedCategory === 'exam') {
         if (!courseName) {
           alert("Please enter course name");
@@ -347,7 +351,7 @@ export default function StudentDashboard() {
         formData.append('examType', examType || 'mid');
         if (currentMarks) formData.append('currentMarks', currentMarks);
         response = await queryAPI.submitExam(formData);
-        
+
       } else if (selectedCategory === 'leave') {
         if (!startDate || !endDate) {
           alert("Please select start and end dates");
@@ -358,7 +362,7 @@ export default function StudentDashboard() {
         formData.append('startDate', startDate);
         formData.append('endDate', endDate);
         response = await queryAPI.submitLeave(formData);
-        
+
       } else if (selectedCategory === 'other') {
         // For attendance issues, require and include courseName/courseCode
         if (selectedQueryType === 'Attendance Issue') {
@@ -380,7 +384,7 @@ export default function StudentDashboard() {
       resetForm();
       setActiveView('dashboard');
       fetchDashboardData(); // Refresh data
-      
+
     } catch (error) {
       console.error('Error submitting query:', error);
       alert(error.response?.data?.message || "Failed to submit query. Please try again.");
@@ -408,7 +412,7 @@ export default function StudentDashboard() {
         preferredTime,
         reason
       });
-      
+
       alert("Appointment booked successfully!");
       setShowAppointmentForm(false);
     } catch (error) {
@@ -453,7 +457,7 @@ export default function StudentDashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {statsDisplay.map((stat, idx) => (
-          <Card key={idx} className={`border-2 ${stat.border} shadow-xl rounded-2xl overflow-hidden transform hover:scale-105 transition-all cursor-pointer`}>
+          <Card key={idx} onClick={stat.action} className={`border-2 ${stat.border} shadow-xl rounded-2xl overflow-hidden transform hover:scale-105 transition-all ${stat.action ? 'cursor-pointer' : ''}`}>
             <div className={`${stat.bg} p-6`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -787,11 +791,10 @@ export default function StudentDashboard() {
               setSelectedCategory(cat.id);
               setSelectedQueryType("");
             }}
-            className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all transform hover:scale-105 ${
-              selectedCategory === cat.id
-                ? `bg-gradient-to-r ${cat.gradient} text-white shadow-xl`
-                : "bg-white text-gray-700 border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg"
-            }`}
+            className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all transform hover:scale-105 ${selectedCategory === cat.id
+              ? `bg-gradient-to-r ${cat.gradient} text-white shadow-xl`
+              : "bg-white text-gray-700 border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg"
+              }`}
           >
             <cat.icon className="w-5 h-5" />
             {cat.label}
@@ -814,7 +817,7 @@ export default function StudentDashboard() {
                 <label className="block text-sm font-bold text-gray-700 mb-2">Student ID</label>
                 <input
                   type="text"
-                  value={user?.studentId|| "N/A"}
+                  value={user?.studentId || "N/A"}
                   disabled
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-100 font-medium shadow-inner"
                 />
@@ -1005,31 +1008,31 @@ export default function StudentDashboard() {
   // ── My Queries View ─────────────────────────────────────────────────
   const MyQueriesView = () => {
     const categoryColors = {
-      academic:    { bg: "bg-purple-50",  border: "border-purple-200",  badge: "bg-purple-100 text-purple-700",  icon: "📚" },
-      exam:        { bg: "bg-blue-50",    border: "border-blue-200",    badge: "bg-blue-100 text-blue-700",      icon: "✏️" },
-      leave:       { bg: "bg-orange-50",  border: "border-orange-200",  badge: "bg-orange-100 text-orange-700",  icon: "🏖️" },
-      other:       { bg: "bg-teal-50",    border: "border-teal-200",    badge: "bg-teal-100 text-teal-700",      icon: "🔧" },
+      academic: { bg: "bg-purple-50", border: "border-purple-200", badge: "bg-purple-100 text-purple-700", icon: "📚" },
+      exam: { bg: "bg-blue-50", border: "border-blue-200", badge: "bg-blue-100 text-blue-700", icon: "✏️" },
+      leave: { bg: "bg-orange-50", border: "border-orange-200", badge: "bg-orange-100 text-orange-700", icon: "🏖️" },
+      other: { bg: "bg-teal-50", border: "border-teal-200", badge: "bg-teal-100 text-teal-700", icon: "🔧" },
     };
 
     const statusStep = (status) => {
-      if (status === "approved") return { dot: "bg-green-500",  text: "text-green-700",  label: "Approved" };
-      if (status === "rejected") return { dot: "bg-red-500",    text: "text-red-700",    label: "Rejected" };
-      return                             { dot: "bg-yellow-400", text: "text-yellow-700", label: "Pending"  };
+      if (status === "approved") return { dot: "bg-green-500", text: "text-green-700", label: "Approved" };
+      if (status === "rejected") return { dot: "bg-red-500", text: "text-red-700", label: "Rejected" };
+      return { dot: "bg-yellow-400", text: "text-yellow-700", label: "Pending" };
     };
 
     const filtered = queryFilter === "all"
       ? queries
       : queryFilter === "approved"
-      ? queries.filter(q => q.finalStatus === "approved")
-      : queryFilter === "pending"
-      ? queries.filter(q => q.finalStatus === "pending")
-      : queryFilter === "rejected"
-      ? queries.filter(q => q.finalStatus === "rejected")
-      : queries.filter(q => q.category === queryFilter);
+        ? queries.filter(q => q.finalStatus === "approved")
+        : queryFilter === "pending"
+          ? queries.filter(q => q.finalStatus === "pending")
+          : queryFilter === "rejected"
+            ? queries.filter(q => q.finalStatus === "rejected")
+            : queries.filter(q => q.category === queryFilter);
 
     const counts = {
-      all:      queries.length,
-      pending:  queries.filter(q => q.finalStatus === "pending").length,
+      all: queries.length,
+      pending: queries.filter(q => q.finalStatus === "pending").length,
       approved: queries.filter(q => q.finalStatus === "approved").length,
       rejected: queries.filter(q => q.finalStatus === "rejected").length,
     };
@@ -1064,20 +1067,19 @@ export default function StudentDashboard() {
         {/* Filter Tabs */}
         <div className="flex flex-wrap gap-2">
           {[
-            { key: "all",      label: `All (${counts.all})`,           color: "bg-gray-800 text-white"     },
-            { key: "pending",  label: `Pending (${counts.pending})`,   color: "bg-yellow-500 text-white"   },
-            { key: "approved", label: `Approved (${counts.approved})`, color: "bg-green-600 text-white"    },
-            { key: "rejected", label: `Rejected (${counts.rejected})`, color: "bg-red-600 text-white"      },
-            
+            { key: "all", label: `All (${counts.all})`, color: "bg-gray-800 text-white" },
+            { key: "pending", label: `Pending (${counts.pending})`, color: "bg-yellow-500 text-white" },
+            { key: "approved", label: `Approved (${counts.approved})`, color: "bg-green-600 text-white" },
+            { key: "rejected", label: `Rejected (${counts.rejected})`, color: "bg-red-600 text-white" },
+
           ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setQueryFilter(tab.key)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                queryFilter === tab.key
-                  ? tab.color + " shadow-lg scale-105"
-                  : "bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-400"
-              }`}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${queryFilter === tab.key
+                ? tab.color + " shadow-lg scale-105"
+                : "bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-400"
+                }`}
             >
               {tab.label}
             </button>
@@ -1105,14 +1107,14 @@ export default function StudentDashboard() {
           <div className="space-y-4">
             {filtered.map((q) => {
               const cat = categoryColors[q.category] || categoryColors.other;
-              const advisor  = q.advisorApproval  || {};
-              const hod      = q.hodApproval      || {};
-              const teacher  = q.teacherApproval  || {};
+              const advisor = q.advisorApproval || {};
+              const hod = q.hodApproval || {};
+              const teacher = q.teacherApproval || {};
 
-              const advisorStep  = statusStep(advisor.status  || "pending");
-              const hodStep      = statusStep(hod.status      || "pending");
-              const teacherStep  = statusStep(teacher.status  || "pending");
-              const finalStep    = statusStep(q.finalStatus   || "pending");
+              const advisorStep = statusStep(advisor.status || "pending");
+              const hodStep = statusStep(hod.status || "pending");
+              const teacherStep = statusStep(teacher.status || "pending");
+              const finalStep = statusStep(q.finalStatus || "pending");
 
               return (
                 <div key={q._id} className={`${cat.bg} ${cat.border} border-2 rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden`}>
@@ -1149,14 +1151,13 @@ export default function StudentDashboard() {
                       </div>
                     </div>
                     {/* Final Status Badge */}
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm flex-shrink-0 ml-4 ${
-                      q.finalStatus === "approved" ? "bg-green-100 text-green-700 border-2 border-green-300"
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm flex-shrink-0 ml-4 ${q.finalStatus === "approved" ? "bg-green-100 text-green-700 border-2 border-green-300"
                       : q.finalStatus === "rejected" ? "bg-red-100 text-red-700 border-2 border-red-300"
-                      : "bg-yellow-100 text-yellow-700 border-2 border-yellow-300"
-                    }`}>
+                        : "bg-yellow-100 text-yellow-700 border-2 border-yellow-300"
+                      }`}>
                       {q.finalStatus === "approved" ? <CheckCircle className="w-4 h-4" />
                         : q.finalStatus === "rejected" ? <XCircle className="w-4 h-4" />
-                        : <RefreshCw className="w-4 h-4" />}
+                          : <RefreshCw className="w-4 h-4" />}
                       {q.finalStatus?.toUpperCase() || "PENDING"}
                     </div>
                   </div>
@@ -1170,11 +1171,10 @@ export default function StudentDashboard() {
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-1">
                           <div className="flex-1">
-                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
-                              teacher.status === "approved" ? "bg-green-50 border-green-300"
+                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${teacher.status === "approved" ? "bg-green-50 border-green-300"
                               : teacher.status === "rejected" ? "bg-red-50 border-red-300"
-                              : "bg-gray-50 border-gray-200"
-                            }`}>
+                                : "bg-gray-50 border-gray-200"
+                              }`}>
                               <div className={`w-3 h-3 rounded-full flex-shrink-0 ${teacherStep.dot}`} />
                               <div className="min-w-0">
                                 <p className="text-xs font-black text-gray-700">Teacher</p>
@@ -1203,11 +1203,10 @@ export default function StudentDashboard() {
                         <div className="flex items-center gap-1">
                           {/* Step 1: Advisor */}
                           <div className="flex-1">
-                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
-                              advisor.status === "approved" ? "bg-green-50 border-green-300"
+                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${advisor.status === "approved" ? "bg-green-50 border-green-300"
                               : advisor.status === "rejected" ? "bg-red-50 border-red-300"
-                              : "bg-gray-50 border-gray-200"
-                            }`}>
+                                : "bg-gray-50 border-gray-200"
+                              }`}>
                               <div className={`w-3 h-3 rounded-full flex-shrink-0 ${advisorStep.dot}`} />
                               <div className="min-w-0">
                                 <p className="text-xs font-black text-gray-700">Advisor</p>
@@ -1223,11 +1222,10 @@ export default function StudentDashboard() {
 
                           {/* Step 2: HOP */}
                           <div className="flex-1">
-                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${
-                              hod.status === "approved" ? "bg-green-50 border-green-300"
+                            <div className={`flex items-center gap-2 p-3 rounded-xl border-2 ${hod.status === "approved" ? "bg-green-50 border-green-300"
                               : hod.status === "rejected" ? "bg-red-50 border-red-300"
-                              : "bg-gray-50 border-gray-200"
-                            }`}>
+                                : "bg-gray-50 border-gray-200"
+                              }`}>
                               <div className={`w-3 h-3 rounded-full flex-shrink-0 ${hodStep.dot}`} />
                               <div className="min-w-0">
                                 <p className="text-xs font-black text-gray-700">HOP</p>
@@ -1267,7 +1265,7 @@ export default function StudentDashboard() {
 
                   {/* Footer */}
                   <div className="flex items-center justify-between px-5 pb-4 text-xs text-gray-500">
-                    
+
                     {q.finalStatus === "pending" && (
                       <button
                         onClick={async () => {
@@ -1275,7 +1273,7 @@ export default function StudentDashboard() {
                           try {
                             await queryAPI.deleteQuery(q._id);
                             await fetchDashboardData();
-                          } catch {}
+                          } catch { }
                         }}
                         className="text-red-500 hover:text-red-700 font-bold flex items-center gap-1 transition-colors"
                       >
@@ -1295,11 +1293,11 @@ export default function StudentDashboard() {
   const MyAppointmentsView = () => {
     const getStatusStyle = (status) => {
       switch (status) {
-        case "confirmed":    return { bg: "bg-green-50",  border: "border-green-300",  dot: "bg-green-500",  text: "text-green-700",  label: "Confirmed"   };
-        case "cancelled":    return { bg: "bg-red-50",    border: "border-red-300",    dot: "bg-red-500",    text: "text-red-700",    label: "Cancelled"   };
-        case "completed":    return { bg: "bg-blue-50",   border: "border-blue-300",   dot: "bg-blue-500",   text: "text-blue-700",   label: "Completed"   };
-        case "rescheduled":  return { bg: "bg-purple-50", border: "border-purple-300", dot: "bg-purple-500", text: "text-purple-700", label: "Rescheduled" };
-        default:             return { bg: "bg-yellow-50", border: "border-yellow-300", dot: "bg-yellow-500", text: "text-yellow-700", label: "Pending"     };
+        case "confirmed": return { bg: "bg-green-50", border: "border-green-300", dot: "bg-green-500", text: "text-green-700", label: "Confirmed" };
+        case "cancelled": return { bg: "bg-red-50", border: "border-red-300", dot: "bg-red-500", text: "text-red-700", label: "Cancelled" };
+        case "completed": return { bg: "bg-blue-50", border: "border-blue-300", dot: "bg-blue-500", text: "text-blue-700", label: "Completed" };
+        case "rescheduled": return { bg: "bg-purple-50", border: "border-purple-300", dot: "bg-purple-500", text: "text-purple-700", label: "Rescheduled" };
+        default: return { bg: "bg-yellow-50", border: "border-yellow-300", dot: "bg-yellow-500", text: "text-yellow-700", label: "Pending" };
       }
     };
 
@@ -1401,17 +1399,16 @@ export default function StudentDashboard() {
                       <p className="text-xs font-black text-gray-500 uppercase tracking-wider">Advisor Response</p>
 
                       {/* Status banner */}
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 ${
-                        apt.status === "confirmed" || apt.status === "completed" ? "bg-green-50 border-green-200"
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 ${apt.status === "confirmed" || apt.status === "completed" ? "bg-green-50 border-green-200"
                         : apt.status === "cancelled" ? "bg-red-50 border-red-200"
-                        : "bg-purple-50 border-purple-200"
-                      }`}>
+                          : "bg-purple-50 border-purple-200"
+                        }`}>
                         <div className={`w-3 h-3 rounded-full flex-shrink-0 ${s.dot}`} />
                         <p className={`text-xs font-black uppercase tracking-wide ${s.text}`}>
-                          {apt.status === "confirmed"    ? "✅ Appointment Confirmed"
-                           : apt.status === "cancelled"  ? "❌ Appointment Cancelled"
-                           : apt.status === "rescheduled"? "🔄 Appointment Rescheduled"
-                           : "✔️ Appointment Completed"}
+                          {apt.status === "confirmed" ? "✅ Appointment Confirmed"
+                            : apt.status === "cancelled" ? "❌ Appointment Cancelled"
+                              : apt.status === "rescheduled" ? "🔄 Appointment Rescheduled"
+                                : "✔️ Appointment Completed"}
                         </p>
                       </div>
 
@@ -1450,20 +1447,18 @@ export default function StudentDashboard() {
                         </div>
                       )}
 
-                      
+
 
                       {/* Advisor comments */}
                       {apt.advisorComments && (
-                        <div className={`flex items-start gap-2 px-3 py-2 rounded-xl border ${
-                          apt.status === "cancelled" ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"
-                        }`}>
+                        <div className={`flex items-start gap-2 px-3 py-2 rounded-xl border ${apt.status === "cancelled" ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"
+                          }`}>
                           {apt.status === "cancelled"
                             ? <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                             : <CheckCircle className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                           }
-                          <p className={`text-xs leading-relaxed ${
-                            apt.status === "cancelled" ? "text-red-700" : "text-gray-600"
-                          }`}>
+                          <p className={`text-xs leading-relaxed ${apt.status === "cancelled" ? "text-red-700" : "text-gray-600"
+                            }`}>
                             {apt.status === "cancelled" && (
                               <span className="font-black text-red-600 mr-1">Reason:</span>
                             )}
@@ -1487,7 +1482,7 @@ export default function StudentDashboard() {
                           try {
                             await appointmentAPI.cancel(apt._id);
                             await fetchAppointments();
-                          } catch {}
+                          } catch { }
                         }}
                         className="text-red-500 hover:text-red-700 font-bold flex items-center gap-1 transition-colors"
                       >
@@ -1503,6 +1498,60 @@ export default function StudentDashboard() {
       </div>
     );
   };
+
+  const MyCoursesView = () => (
+    <div className="space-y-6">
+      <Card className="border-2 border-gray-200 shadow-xl rounded-2xl">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2">
+          <CardTitle className="flex items-center gap-2 text-gray-800">
+            <BookOpen className="w-6 h-6 text-blue-600" />
+            My Courses
+          </CardTitle>
+          <p className="text-sm text-gray-500 mt-1 font-medium">Courses assigned to you by your advisor</p>
+        </CardHeader>
+        <CardContent className="p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : myCourses.length > 0 ? (
+            <div className="space-y-4">
+              {myCourses.map((course: any) => (
+                <div key={course._id} className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200 hover:shadow-lg transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <BookOpen className="w-6 h-6 text-blue-600" />
+                        <h4 className="font-bold text-gray-800 text-lg">{course.courseName}</h4>
+                        {course.courseCode && (
+                          <Badge className="bg-blue-100 text-blue-700 font-bold">{course.courseCode}</Badge>
+                        )}
+                        <Badge className={`font-bold ${course.status === 'active' ? 'bg-green-100 text-green-700' :
+                          course.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>{course.status}</Badge>
+                      </div>
+                      <div className="flex items-center gap-4 ml-9 text-sm text-gray-600 font-medium">
+                        <span>{course.creditHours || 3} Credit Hours</span>
+                        {course.semester && <span>• {course.semester}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <p className="font-medium text-lg">No courses assigned yet</p>
+              <p className="text-sm mt-2 text-gray-400">Your advisor has not assigned any courses to you. Check back later.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -1525,11 +1574,10 @@ export default function StudentDashboard() {
         <nav className="flex-1 p-4 space-y-2">
           <button
             onClick={() => setActiveView("dashboard")}
-            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
-              activeView === "dashboard"
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
-                : "text-gray-700 hover:bg-gray-100 hover:shadow"
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${activeView === "dashboard"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+              : "text-gray-700 hover:bg-gray-100 hover:shadow"
+              }`}
           >
             <BookOpen className="w-5 h-5" />
             Dashboard
@@ -1537,11 +1585,10 @@ export default function StudentDashboard() {
 
           <button
             onClick={() => setActiveView("queryForm")}
-            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
-              activeView === "queryForm"
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
-                : "text-gray-700 hover:bg-gray-100 hover:shadow"
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${activeView === "queryForm"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+              : "text-gray-700 hover:bg-gray-100 hover:shadow"
+              }`}
           >
             <FileText className="w-5 h-5" />
             Submit Query
@@ -1549,11 +1596,10 @@ export default function StudentDashboard() {
 
           <button
             onClick={() => setActiveView("attendance")}
-            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
-              activeView === "attendance"
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
-                : "text-gray-700 hover:bg-gray-100 hover:shadow"
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${activeView === "attendance"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+              : "text-gray-700 hover:bg-gray-100 hover:shadow"
+              }`}
           >
             <UserCheck className="w-5 h-5" />
             My Attendance
@@ -1561,11 +1607,10 @@ export default function StudentDashboard() {
 
           <button
             onClick={() => setActiveView("marks")}
-            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
-              activeView === "marks"
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
-                : "text-gray-700 hover:bg-gray-100 hover:shadow"
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${activeView === "marks"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+              : "text-gray-700 hover:bg-gray-100 hover:shadow"
+              }`}
           >
             <BarChart3 className="w-5 h-5" />
             My Marks
@@ -1573,11 +1618,10 @@ export default function StudentDashboard() {
 
           <button
             onClick={() => setActiveView("myQueries")}
-            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
-              activeView === "myQueries"
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
-                : "text-gray-700 hover:bg-gray-100 hover:shadow"
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${activeView === "myQueries"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+              : "text-gray-700 hover:bg-gray-100 hover:shadow"
+              }`}
           >
             <ClipboardList className="w-5 h-5" />
             My Queries
@@ -1590,11 +1634,10 @@ export default function StudentDashboard() {
 
           <button
             onClick={() => setActiveView("myAppointments")}
-            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${
-              activeView === "myAppointments"
-                ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg transform scale-105"
-                : "text-gray-700 hover:bg-gray-100 hover:shadow"
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${activeView === "myAppointments"
+              ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg transform scale-105"
+              : "text-gray-700 hover:bg-gray-100 hover:shadow"
+              }`}
           >
             <CalendarCheck className="w-5 h-5" />
             My Appointments
@@ -1603,6 +1646,17 @@ export default function StudentDashboard() {
                 {appointments.filter(a => a.status === "confirmed").length}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveView("myCourses")}
+            className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all font-semibold ${activeView === "myCourses"
+              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105"
+              : "text-gray-700 hover:bg-gray-100 hover:shadow"
+              }`}
+          >
+            <BookOpen className="w-5 h-5" />
+            My Courses
           </button>
         </nav>
 
@@ -1718,6 +1772,7 @@ export default function StudentDashboard() {
           {activeView === "marks" && MarksView()}
           {activeView === "myQueries" && MyQueriesView()}
           {activeView === "myAppointments" && MyAppointmentsView()}
+          {activeView === "myCourses" && MyCoursesView()}
         </div>
       </div>
 
@@ -1793,8 +1848,8 @@ export default function StudentDashboard() {
                 >
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleAppointmentSubmit} 
+                <Button
+                  onClick={handleAppointmentSubmit}
                   disabled={loading}
                   className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 py-6 font-bold rounded-xl shadow-lg"
                 >

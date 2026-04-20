@@ -14,7 +14,19 @@ export const handleValidationErrors = (req, res, next) => {
 
 // Auth validation rules
 export const registerValidation = [
-  body("email").isEmail().normalizeEmail().withMessage("Valid email required"),
+  body("email")
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("Valid email required")
+    .custom((value, { req }) => {
+      if (req.body.role === 'student') {
+        const studentEmailRegex = /^\d{2}-[a-zA-Z]+-\d+@student\.hitecuni\.edu\.pk$/;
+        if (!studentEmailRegex.test(value)) {
+          throw new Error("Student email must match format: 22-se-101@student.hitecuni.edu.pk");
+        }
+      }
+      return true;
+    }),
   body("password")
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters"),
@@ -26,8 +38,15 @@ export const registerValidation = [
   body("studentId")
     .optional()
     .trim()
-    .isLength({ min: 3 })
-    .withMessage("Student ID must be at least 3 characters"),
+    .custom((value, { req }) => {
+      if (req.body.role === 'student') {
+        const rollNoRegex = /^\d{2}-[a-zA-Z]+-\d+$/;
+        if (!rollNoRegex.test(value)) {
+          throw new Error("Student ID (Roll No) must match format: 22-se-101");
+        }
+      }
+      return true;
+    }),
   body("batch")
     .optional()
     .trim()
@@ -119,8 +138,15 @@ export const updateUserValidation = [
   body("studentId")
     .optional()
     .trim()
-    .isLength({ min: 3 })
-    .withMessage("Student ID must be at least 3 characters"),
+    .custom((value) => {
+      if (value) {
+        const rollNoRegex = /^\d{2}-[a-zA-Z]+-\d+$/;
+        if (!rollNoRegex.test(value)) {
+          throw new Error("Student ID (Roll No) must match format: 22-se-101");
+        }
+      }
+      return true;
+    }),
   body("batch")
     .optional()
     .trim()

@@ -143,6 +143,22 @@ export default function RegisterPage() {
       toast.error("Semester is required");
       return;
     }
+    
+    if (formData.role === "student") {
+      const rollNoRegex = /^\d{2}-[a-zA-Z]+-\d+$/;
+      if (!rollNoRegex.test(formData.studentId)) {
+        toast.error("Roll No must match format: 22-se-101 or 21-cs-201");
+        return;
+      }
+    }
+    
+    if (formData.role === "student") {
+      const studentEmailRegex = /^\d{2}-[a-zA-Z]+-\d+@student\.hitecuni\.edu\.pk$/;
+      if (!studentEmailRegex.test(formData.email)) {
+        toast.error("Student email must match format: 22-se-101@student.hitecuni.edu.pk");
+        return;
+      }
+    }
 
     setLoading(true);
 

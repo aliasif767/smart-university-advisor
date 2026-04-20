@@ -76,6 +76,19 @@ export default function AdvisorDashboard() {
   const [sectionAssignSections, setSectionAssignSections] = useState<string[]>([]);
   const [advisorSections, setAdvisorSections] = useState<any[]>([]);
 
+  // Course Assignment States
+  const [showAssignCourse, setShowAssignCourse] = useState(false);
+  const [courseAssignStudent, setCourseAssignStudent] = useState<any>(null);
+  const [newCourseName, setNewCourseName] = useState("");
+  const [newCourseCode, setNewCourseCode] = useState("");
+  const [newCreditHours, setNewCreditHours] = useState("3");
+  const [newCourseSemester, setNewCourseSemester] = useState("");
+  // View Courses States
+  const [showViewCourses, setShowViewCourses] = useState(false);
+  const [viewCoursesStudent, setViewCoursesStudent] = useState<any>(null);
+  const [studentCourses, setStudentCourses] = useState<any[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+
   // Fetch data on mount
   useEffect(() => {
     fetchDashboardData();
@@ -239,6 +252,50 @@ export default function AdvisorDashboard() {
     setSectionAssignSections(prev =>
       prev.includes(sec) ? prev.filter(s => s !== sec) : [...prev, sec]
     );
+  };
+
+  // ── Course assignment handlers ─────────────────────────────────────
+  const handleAssignCourse = async () => {
+    if (!newCourseName.trim()) { alert("Please enter a course name!"); return; }
+    setLoading(true);
+    try {
+      const res = await advisorAPI.assignCourses({
+        studentId: courseAssignStudent._id,
+        courses: [{
+          courseName: newCourseName.trim(),
+          courseCode: newCourseCode.trim(),
+          creditHours: parseInt(newCreditHours) || 3,
+          semester: newCourseSemester.trim()
+        }]
+      });
+      alert(res.data.message || "Course assigned!");
+      setNewCourseName(""); setNewCourseCode(""); setNewCreditHours("3"); setNewCourseSemester("");
+      // Keep modal open so advisor can add more courses
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Failed to assign course");
+    } finally { setLoading(false); }
+  };
+
+  const handleViewStudentCourses = async (student: any) => {
+    setViewCoursesStudent(student);
+    setShowViewCourses(true);
+    setCoursesLoading(true);
+    try {
+      const res = await advisorAPI.getStudentCourses(student._id);
+      setStudentCourses(res.data.courses || []);
+    } catch {
+      setStudentCourses([]);
+    } finally { setCoursesLoading(false); }
+  };
+
+  const handleRemoveCourse = async (courseId: string) => {
+    if (!confirm("Remove this course?")) return;
+    try {
+      await advisorAPI.removeCourse(courseId);
+      setStudentCourses(prev => prev.filter(c => c._id !== courseId));
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Failed to remove course");
+    }
   };
 
   const handleForwardToHOP = async (queryId) => {
@@ -717,6 +774,29 @@ export default function AdvisorDashboard() {
                             >
                               <UserCog className="w-3.5 h-3.5 mr-1" />
                               {student.assignedTeacher ? 'Change Teacher' : 'Assign Teacher'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setCourseAssignStudent(student);
+                                setNewCourseName(""); setNewCourseCode(""); setNewCreditHours("3");
+                                setNewCourseSemester(student.semester ? `Semester ${student.semester}` : "");
+                                setShowAssignCourse(true);
+                              }}
+                              className="border-2 border-emerald-400 text-emerald-600 hover:bg-emerald-50 text-xs"
+                            >
+                              <BookOpen className="w-3.5 h-3.5 mr-1" />
+                              Assign Course
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewStudentCourses(student)}
+                              className="border-2 border-purple-400 text-purple-600 hover:bg-purple-50 text-xs"
+                            >
+                              <Eye className="w-3.5 h-3.5 mr-1" />
+                              View Courses
                             </Button>
                           </div>
                         </div>
@@ -1611,6 +1691,164 @@ export default function AdvisorDashboard() {
                   )}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Assign Course Modal ────────────────────────────────────── */}
+      {showAssignCourse && courseAssignStudent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border-2 border-gray-200">
+            <div className="bg-gradient-to-r from-emerald-600 to-green-700 p-6 flex items-center justify-between text-white rounded-t-3xl">
+              <div className="flex items-center gap-3">
+                <div className="bg-white p-3 rounded-xl shadow-lg">
+                  <BookOpen className="h-6 w-6 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl">Assign Course</h3>
+                  <p className="text-sm text-emerald-100 font-medium">to {courseAssignStudent.name} ({courseAssignStudent.rollNo})</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowAssignCourse(false); setCourseAssignStudent(null); }} className="hover:bg-white/20 p-2 rounded-xl transition-all">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5 bg-gradient-to-br from-white to-gray-50">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Course Name *</label>
+                <input
+                  value={newCourseName}
+                  onChange={e => setNewCourseName(e.target.value)}
+                  placeholder="e.g. Data Structures & Algorithms"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium shadow-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Course Code</label>
+                  <input
+                    value={newCourseCode}
+                    onChange={e => setNewCourseCode(e.target.value)}
+                    placeholder="e.g. CS201"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Credit Hours</label>
+                  <input
+                    type="number"
+                    value={newCreditHours}
+                    onChange={e => setNewCreditHours(e.target.value)}
+                    min="1" max="6"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium shadow-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Semester</label>
+                <input
+                  value={newCourseSemester}
+                  onChange={e => setNewCourseSemester(e.target.value)}
+                  placeholder="e.g. Fall 2024"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium shadow-sm"
+                />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 py-6 font-bold rounded-xl border-2 hover:bg-gray-100"
+                  onClick={() => { setShowAssignCourse(false); setCourseAssignStudent(null); }}
+                  disabled={loading}
+                >
+                  Done
+                </Button>
+                <Button
+                  onClick={handleAssignCourse}
+                  disabled={loading || !newCourseName.trim()}
+                  className="flex-1 bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 py-6 font-bold rounded-xl shadow-lg disabled:opacity-50"
+                >
+                  {loading ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Assigning...</>
+                  ) : (
+                    <><Save className="w-4 h-4 mr-2" />Assign Course</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── View Student Courses Modal ──────────────────────────────── */}
+      {showViewCourses && viewCoursesStudent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border-2 border-gray-200 max-h-[85vh] flex flex-col">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-700 p-6 flex items-center justify-between text-white rounded-t-3xl flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="bg-white p-3 rounded-xl shadow-lg">
+                  <BookOpen className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl">Assigned Courses</h3>
+                  <p className="text-sm text-purple-100 font-medium">{viewCoursesStudent.name} ({viewCoursesStudent.rollNo})</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowViewCourses(false); setViewCoursesStudent(null); setStudentCourses([]); }} className="hover:bg-white/20 p-2 rounded-xl transition-all">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 bg-gradient-to-br from-white to-gray-50">
+              {coursesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                </div>
+              ) : studentCourses.length > 0 ? (
+                <div className="space-y-3">
+                  {studentCourses.map((course: any) => (
+                    <div key={course._id} className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200 hover:shadow-lg transition-all">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <BookOpen className="w-5 h-5 text-purple-600" />
+                            <span className="font-bold text-gray-800">{course.courseName}</span>
+                            {course.courseCode && (
+                              <Badge className="bg-purple-100 text-purple-700 font-bold text-xs">{course.courseCode}</Badge>
+                            )}
+                            <Badge className={`font-bold text-xs ${
+                              course.status === 'active' ? 'bg-green-100 text-green-700' :
+                              course.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>{course.status}</Badge>
+                          </div>
+                          <div className="flex items-center gap-4 ml-8 text-sm text-gray-600">
+                            <span>{course.creditHours || 3} Credit Hours</span>
+                            {course.semester && <span>• {course.semester}</span>}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRemoveCourse(course._id)}
+                          className="border-2 border-red-300 text-red-600 hover:bg-red-50 text-xs"
+                        >
+                          <X className="w-3.5 h-3.5 mr-1" />
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="text-center pt-2">
+                    <p className="text-sm text-gray-500 font-medium">{studentCourses.filter((c: any) => c.status === 'active').length} active course(s) • {studentCourses.length} total</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <p className="font-medium">No courses assigned yet</p>
+                  <p className="text-sm mt-2 text-gray-400">Use the "Assign Course" button to add courses for this student.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

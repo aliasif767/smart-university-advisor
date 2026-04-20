@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:5000/api"
+  //baseURL: import.meta.env.VITE_REACT_APP_API_URL || "http://localhost:5000/api"
 });
 api.interceptors.request.use((cfg) => {
   const token = sessionStorage.getItem("token");
